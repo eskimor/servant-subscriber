@@ -9,8 +9,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 -- {-# LANGUAGE NoMonomorphismRestriction #-}
 
-module Server where
-
 
 import Control.Monad.Except
 import Data.Aeson.Compat
@@ -50,7 +48,7 @@ data Position = Position
 instance ToJSON Position
 
 newtype HelloMessage = HelloMessage { msg :: String }
-  deriving Generic
+  deriving (Generic, Show)
 
 instance ToJSON HelloMessage
 
@@ -120,8 +118,9 @@ main = do
       endpoint = Proxy
   pos <- runExceptT $ callServer3 endpoint 9 2
   print pos
-  run 8081 app3
-
--- Verb
-instance GetEndpoint (Verb n s ct a) (Verb n s ct a) 'True where
-  getEndpoint _ _ _ _ server = server
+  let endpoint2 :: Proxy ("hello" :> QueryParam "name" String :> Get '[JSON] HelloMessage)
+      endpoint2 = Proxy
+  hello <- runExceptT $ callServer3 endpoint2 $ Just "Robert"
+  hello2 <- runExceptT $ callServer3 endpoint2 Nothing
+  print hello
+  print hello2

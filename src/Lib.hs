@@ -105,12 +105,12 @@ instance (KnownSymbol sym, GetEndpoint sa endpoint (PickLeftRight endpoint sa)) 
     where pLeftRight = Proxy :: Proxy (PickLeftRight endpoint sa)
 
 -- Capture
-instance (KnownSymbol sym, GetEndpoint sa endpoint (PickLeftRight endpoint sa)) => GetEndpoint (Capture sym a :> sa) (Capture sym1 a :> endpoint) 'True where
+instance (GetEndpoint sa endpoint (PickLeftRight endpoint sa)) => GetEndpoint (Capture sym a :> sa) (Capture sym1 a :> endpoint) 'True where
   getEndpoint _ pM _ pEndpoint server a = getEndpoint pLeftRight pM (Proxy :: Proxy sa) (Proxy :: Proxy endpoint) (server a)
     where pLeftRight = Proxy :: Proxy (PickLeftRight endpoint sa)
 
 -- QueryParam
-instance (KnownSymbol sym, GetEndpoint sa endpoint (PickLeftRight endpoint sa)) => GetEndpoint (QueryParam sym a :> sa) (QueryParam sym a :> endpoint) 'True where
+instance (GetEndpoint sa endpoint (PickLeftRight endpoint sa)) => GetEndpoint (QueryParam sym a :> sa) (QueryParam sym a :> endpoint) 'True where
   getEndpoint _ pM _ pEndpoint server ma = getEndpoint pLeftRight pM (Proxy :: Proxy sa) (Proxy :: Proxy endpoint) (server ma)
     where pLeftRight = Proxy :: Proxy (PickLeftRight endpoint sa)
 
@@ -138,10 +138,6 @@ instance (GetEndpoint sa endpoint (PickLeftRight endpoint sa)) => GetEndpoint (R
 
 
 -- Verb
-instance GetEndpoint (Verb n s ct a) (Verb n s ct a) 'True where
-  getEndpoint _ _ _ _ server = server
-
-
--- Raw
-instance GetEndpoint Raw Raw 'True where
+  -- (method :: k1) (statusCode :: Nat) (contentTypes :: [*])
+instance GetEndpoint (Verb (n :: StdMethod) (s :: Nat) (ct :: [*]) a) (Verb (n :: StdMethod) (s :: Nat) (ct :: [*]) a) 'True where
   getEndpoint _ _ _ _ server = server
