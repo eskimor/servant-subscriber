@@ -23,6 +23,19 @@ import Network.Wai (Application)
 import Control.Monad.Trans.Except (ExceptT)
 
 
+
+       
+-- | Select a handler from an API by specifying a type level link.
+-- | The value of this function is the selected handler which can be called.
+callHandler :: forall api endpoint. (GetEndpoint api endpoint (PickLeftRight endpoint api))
+            => Proxy api
+            -> ServerT api (ExceptT ServantErr IO)
+            -> Proxy endpoint
+            -> ServerT endpoint (ExceptT ServantErr IO)
+callHandler pA handlers pE = getEndpoint (Proxy :: Proxy (PickLeftRight endpoint api)) pM pA pE handlers
+  where
+    pM = Proxy :: Proxy (ExceptT ServantErr IO)
+
 type family Or (a :: Bool) (b :: Bool) :: Bool where
   Or 'False 'False = 'False
   Or 'False 'True = 'True
@@ -74,18 +87,6 @@ type family PickLeftRight endpoint api :: Bool where
 
 
 
--- | Select a handler from an API by specifying a type level link.
-callHandler :: forall api endpoint. (GetEndpoint api endpoint (PickLeftRight endpoint api))
-            => Proxy api
-            -> ServerT api (ExceptT ServantErr IO)
-            -> Proxy endpoint
-            -> ServerT endpoint (ExceptT ServantErr IO)
-callHandler pA handlers pE = getEndpoint (Proxy :: Proxy (PickLeftRight endpoint api)) pM pA pE handlers
-  where
-    pM = Proxy :: Proxy (ExceptT ServantErr IO)
-
-
-    
 class GetEndpoint api endpoint (chooseRight :: Bool)  where
   getEndpoint :: forall m. Proxy chooseRight -> Proxy m -> Proxy api -> Proxy endpoint -> ServerT api m -> ServerT endpoint m
 

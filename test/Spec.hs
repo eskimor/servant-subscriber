@@ -33,7 +33,6 @@ import qualified Text.Blaze.Html
 
        
 import Lib
-import Unsafe.Coerce (unsafeCoerce)
 
 
 type API = "position" :> Capture "x" Int :> Capture "y" Int :> Get '[JSON] Position
