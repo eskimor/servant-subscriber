@@ -16,8 +16,9 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Lib
-  build-depends:       base >= 4.7 && < 5
-                     , aeson
+  build-depends:       aeson
+                     , base >= 4.7 && < 5
+                     , directory >= 1.2.2.0
                      , servant
                      , servant-server
                      , transformers
@@ -37,8 +38,25 @@ test-suite servant-subscriber-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
-  build-depends:       base
+  build-depends:       
+                       aeson
+                     , aeson-compat
+                     , attoparsec >= 0.13.0.1
+                     , base
+                     , base-compat >= 0.9.0
+                     , blaze-html >= 0.8.1.1
+                     , blaze-markup >= 0.7.0.3
+                     , bytestring >= 0.10.6.0
+                     , directory >= 1.2.2.0
+                     , http-media >= 0.6.3
+                     , lucid
+                     , mtl >= 2.2.1
+                     , servant-server
                      , servant-subscriber
+                     , string-conversions >= 0.4
+                     , time >= 1.5.0.1
+                     , wai
+                     , warp
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 
