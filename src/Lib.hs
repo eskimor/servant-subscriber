@@ -72,101 +72,76 @@ type family PickLeftRight endpoint api :: Bool where
   PickLeftRight endpoint (sa :<|> sb) = IsElem endpoint sb
   PickLeftRight endpoint sa = 'True
 
-{-- API:
-  getUpdate myAPI (Proxy :: Proxy ("someEndPoint" :> Capture "arg" Int :> Get '[JSON] Int)) (\e -> e 9)
 
---}
 
 -- | Select a handler from an API by specifying a type level link.
 callHandler :: forall api endpoint. (GetEndpoint api endpoint (PickLeftRight endpoint api))
             => Proxy api
-            -> MyServerT api (ExceptT ServantErr IO)
+            -> ServerT api (ExceptT ServantErr IO)
             -> Proxy endpoint
-            -> MyServerT endpoint (ExceptT ServantErr IO)
+            -> ServerT endpoint (ExceptT ServantErr IO)
 callHandler pA handlers pE = getEndpoint (Proxy :: Proxy (PickLeftRight endpoint api)) pM pA pE handlers
   where
     pM = Proxy :: Proxy (ExceptT ServantErr IO)
-    -- pLeftRight :: Proxy endpoint -> Proxy api -> Proxy (PickLeftRight endpoint api)
-    -- pLeftRight _ _ = Proxy :: Proxy (PickLeftRight endpoint api)
 
+
+    
 class GetEndpoint api endpoint (chooseRight :: Bool)  where
-  type MyServerT api (m :: * -> *) :: *
-  getEndpoint :: forall m. Proxy chooseRight -> Proxy m -> Proxy api -> Proxy endpoint -> MyServerT api m -> MyServerT endpoint m
+  getEndpoint :: forall m. Proxy chooseRight -> Proxy m -> Proxy api -> Proxy endpoint -> ServerT api m -> ServerT endpoint m
 
 -- Left choice
 instance (GetEndpoint b1 endpoint (PickLeftRight endpoint b1))  => GetEndpoint (b1 :<|> b2) endpoint 'False where
-  type MyServerT (b1 :<|> b2) m = MyServerT b1 m :<|> MyServerT b2 m
-  
   getEndpoint _ pM _ pEndpoint (lS :<|> _) = getEndpoint pLeftRight pM (Proxy :: Proxy b1) pEndpoint lS
     where pLeftRight = Proxy :: Proxy (PickLeftRight endpoint b1)
 
 -- Right choice
 instance (GetEndpoint b2 endpoint (PickLeftRight endpoint b2))  => GetEndpoint (b1 :<|> b2) endpoint 'True where
-  type MyServerT (b1 :<|> b2) m = MyServerT b1 m :<|> MyServerT b2 m
-
   getEndpoint _ pM _ pEndpoint (_ :<|> lR) = getEndpoint pLeftRight pM (Proxy :: Proxy b2) pEndpoint lR
     where pLeftRight = Proxy :: Proxy (PickLeftRight endpoint b2)
 
 -- Pathpiece
 instance (KnownSymbol sym, GetEndpoint sa endpoint (PickLeftRight endpoint sa)) => GetEndpoint (sym :> sa) (sym :> endpoint) 'True where
-  type MyServerT (sym :> sa) m = MyServerT sa m
   getEndpoint _ pM _ pEndpoint server = getEndpoint pLeftRight pM (Proxy :: Proxy sa) (Proxy :: Proxy endpoint) server
     where pLeftRight = Proxy :: Proxy (PickLeftRight endpoint sa)
 
 -- Capture
 instance (KnownSymbol sym, GetEndpoint sa endpoint (PickLeftRight endpoint sa)) => GetEndpoint (Capture sym a :> sa) (Capture sym1 a :> endpoint) 'True where
-  type MyServerT (Capture sym a :> sa) m = a -> MyServerT sa m
-  
   getEndpoint _ pM _ pEndpoint server a = getEndpoint pLeftRight pM (Proxy :: Proxy sa) (Proxy :: Proxy endpoint) (server a)
     where pLeftRight = Proxy :: Proxy (PickLeftRight endpoint sa)
 
 -- QueryParam
 instance (KnownSymbol sym, GetEndpoint sa endpoint (PickLeftRight endpoint sa)) => GetEndpoint (QueryParam sym a :> sa) (QueryParam sym a :> endpoint) 'True where
-  type MyServerT (QueryParam sym a :> sa) m = (Maybe a) -> MyServerT sa m
-
   getEndpoint _ pM _ pEndpoint server ma = getEndpoint pLeftRight pM (Proxy :: Proxy sa) (Proxy :: Proxy endpoint) (server ma)
     where pLeftRight = Proxy :: Proxy (PickLeftRight endpoint sa)
 
 -- QueryParams
 instance (KnownSymbol sym, GetEndpoint sa endpoint (PickLeftRight endpoint sa)) => GetEndpoint (QueryParams sym a :> sa) (QueryParams sym a :> endpoint) 'True where
-  type MyServerT (QueryParams sym a :> sa) m = [a] -> MyServerT sa m
-
   getEndpoint _ pM _ pEndpoint server as = getEndpoint pLeftRight pM (Proxy :: Proxy sa) (Proxy :: Proxy endpoint) (server as)
     where pLeftRight = Proxy :: Proxy (PickLeftRight endpoint sa)
 
 -- QueryFlag
 instance (KnownSymbol sym, GetEndpoint sa endpoint (PickLeftRight endpoint sa)) => GetEndpoint (QueryFlag sym :> sa) (QueryFlag sym :> endpoint) 'True where
-  type MyServerT (QueryFlag sym :> sa) m = Bool -> MyServerT sa m
-
   getEndpoint _ pM _ pEndpoint server f = getEndpoint pLeftRight pM (Proxy :: Proxy sa) (Proxy :: Proxy endpoint) (server f)
     where pLeftRight = Proxy :: Proxy (PickLeftRight endpoint sa)
 
 
 -- Header
 instance (KnownSymbol sym, GetEndpoint sa endpoint (PickLeftRight endpoint sa)) => GetEndpoint (Header sym a :> sa) (Header sym a :> endpoint) 'True where
-  type MyServerT (Header sym a :> sa) m = (Maybe a) -> MyServerT sa m
-
   getEndpoint _ pM _ pEndpoint server ma = getEndpoint pLeftRight pM (Proxy :: Proxy sa) (Proxy :: Proxy endpoint) (server ma)
     where pLeftRight = Proxy :: Proxy (PickLeftRight endpoint sa)
 
 
 -- ReqBody
 instance (GetEndpoint sa endpoint (PickLeftRight endpoint sa)) => GetEndpoint (ReqBody ct a :> sa) (ReqBody ct a :> endpoint) 'True where
-  type MyServerT (ReqBody ct a :> sa) m = a -> MyServerT sa m
-
   getEndpoint _ pM _ pEndpoint server a = getEndpoint pLeftRight pM (Proxy :: Proxy sa) (Proxy :: Proxy endpoint) (server a)
     where pLeftRight = Proxy :: Proxy (PickLeftRight endpoint sa)
 
 
 -- Verb
 instance GetEndpoint (Verb n s ct a) (Verb n s ct a) 'True where
-  type MyServerT (Verb n s ct a) m = m a
-
   getEndpoint _ _ _ _ server = server
 
 
 -- Raw
 instance GetEndpoint Raw Raw 'True where
-  type MyServerT Raw m = Application
-
   getEndpoint _ _ _ _ server = server
