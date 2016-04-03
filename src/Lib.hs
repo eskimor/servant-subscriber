@@ -55,13 +55,18 @@ type family Not (a :: Bool) :: Bool where
 type family IsElem endpoint api :: Bool where
     IsElem e (sa :<|> sb)                   = Or (IsElem e sa) (IsElem e sb)
     IsElem (e :> sa) (e :> sb)              = IsElem sa sb
-    IsElem sa (Header sym x :> sb)          = IsElem sa sb
-    IsElem sa (ReqBody y x :> sb)           = IsElem sa sb
+    IsElem (Header sym :> sa) (Header sym x :> sb)
+                                            = IsElem sa sb
+    IsElem (ReqBody y x :> sa) (ReqBody y x :> sb)
+                                            = IsElem sa sb
     IsElem (Capture z y :> sa) (Capture x y :> sb)
                                             = IsElem sa sb
-    IsElem sa (QueryParam x y :> sb)        = IsElem sa sb
-    IsElem sa (QueryParams x y :> sb)       = IsElem sa sb
-    IsElem sa (QueryFlag x :> sb)           = IsElem sa sb
+    IsElem (QueryParam x y :> sa) (QueryParam x y :> sb)
+                                            = IsElem sa sb
+    IsElem (QueryParams x y :> sa) (QueryParams x y :> sb)
+                                            = IsElem sa sb
+    IsElem (QueryFlag x :> sa) (QueryFlag x :> sb)
+                                            = IsElem sa sb
     IsElem (Verb m s ct typ) (Verb m s ct' typ)
                                             = IsSubList ct ct'
     IsElem e e                              = True
