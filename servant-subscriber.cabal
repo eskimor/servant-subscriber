@@ -18,12 +18,16 @@ library
   exposed-modules:     Lib
   build-depends:       aeson
                      , base >= 4.7 && < 5
+                     , containers
                      , directory >= 1.2.2.0
                      , servant
                      , servant-server
+                     , text
+                     , time
                      , transformers
                      , wai
                      , warp
+                     , websockets
   default-language:    Haskell2010
 
 executable servant-subscriber-exe
@@ -38,7 +42,7 @@ test-suite servant-subscriber-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
-  build-depends:       
+  build-depends:
                        aeson
                      , aeson-compat
                      , attoparsec >= 0.13.0.1

@@ -37,4 +37,4 @@ extra-package-dbs: []
 # compiler-check: newer-minor
 
 nix:
-  packages: [zlib]
+  packages: [zlib] 
