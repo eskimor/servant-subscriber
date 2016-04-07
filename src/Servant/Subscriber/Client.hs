@@ -1,7 +1,7 @@
 module Servant.Subscriber.Client where
 
 
-import Control.Concurrent.STM.TVar (TVar)
+import           Control.Concurrent.STM.TVar   (TVar)
 import           Data.Aeson
 import           Data.IntMap                   (IntMap)
 import qualified Data.IntMap                   as IntMap

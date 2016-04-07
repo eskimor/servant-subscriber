@@ -20,8 +20,10 @@ library
                      , base >= 4.7 && < 5
                      , containers
                      , directory >= 1.2.2.0
+                     , network-uri
                      , servant
                      , servant-server
+                     , stm
                      , text
                      , time
                      , transformers
