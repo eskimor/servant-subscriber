@@ -99,13 +99,13 @@ data Subscriber = Subscriber {
 notify :: (IsElem endpoint api, HasLink endpoint
   , IsValidEndpoint endpoint, IsSubscribable endpoint api eventName
   , EventNameFromProxy eventName)
-  => Proxy api
+  => Subscriber
+  -> Proxy api
   -> Proxy (eventName :: EventName)
   -> Proxy endpoint
-  -> Subscriber
   -> (MkLink endpoint -> URI)
   -> STM ()
-notify pApi pEventName pEndpoint subscriber getLink = do
+notify subscriber pApi pEventName pEndpoint getLink = do
   let resource = Path . T.pack . uriPath $ getLink (safeLink pApi pEndpoint)
   case fromEventNameProxy pEventName of
     CreatedEvent  -> alterState handleCreate resource subscriber

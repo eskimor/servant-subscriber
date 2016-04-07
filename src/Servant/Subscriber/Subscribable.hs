@@ -1,10 +1,14 @@
-{-# LANGUAGE ConstraintKinds      #-}
-{-# LANGUAGE DataKinds            #-}
-{-# LANGUAGE KindSignatures       #-}
-{-# LANGUAGE PolyKinds            #-}
-{-# LANGUAGE TypeFamilies         #-}
-{-# LANGUAGE TypeOperators        #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
+
 
 
 
@@ -56,6 +60,10 @@ type family IsSubscribable endpoint api (subscription :: EventName) :: Constrain
 type family IsValidEndpoint endpoint :: Constraint where
   IsValidEndpoint ((sym :: Symbol) :> sub) = IsValidEndpoint sub
   IsValidEndpoint (Capture z y :> sub)     = IsValidEndpoint sub
+
+instance HasServer sublayout context => HasServer (Subscribable s :> sublayout) context where
+  type ServerT (Subscribable s :> sublayout) m = ServerT sublayout m
+  route _ = route (Proxy :: Proxy sublayout)
 
 -------------- Copied from Servant.Util.Links (they are not exported) ----------
 
