@@ -81,14 +81,31 @@ data Subscriber = Subscriber {
   subState :: !(TVar ResourceStatusMap)
 }
 
-update :: (IsElem endpoint api, HasLink endpoint, IsValidEndpoint endpoint, IsSubscribable endpoint api eventName)
+{--|
+  Notify the subscriber about a changed resource.
+  You have to provide a typesafe link to the changed resource. Only
+  Symbols and Captures are allowed in this link.
+
+  You need to provide a proxy to the API too. This is needed to check that the endpoint is valid
+  and points to a 'Subscribable' resource.
+
+  In addition the event you want to notify about has to be provided via a proxy.
+
+  One piece is still missing - we have to fill out captures, that's what the getLink parameter is
+  for: You will typicall provide a lamda there providing needed parameters.
+
+  TODO: Example!
+--}
+notify :: (IsElem endpoint api, HasLink endpoint
+  , IsValidEndpoint endpoint, IsSubscribable endpoint api eventName
+  , EventNameFromProxy eventName)
   => Proxy api
   -> Proxy (eventName :: EventName)
   -> Proxy endpoint
   -> Subscriber
   -> (MkLink endpoint -> URI)
   -> STM ()
-update pApi pEventName pEndpoint subscriber getLink = do
+notify pApi pEventName pEndpoint subscriber getLink = do
   let resource = Path . T.pack . uriPath $ getLink (safeLink pApi pEndpoint)
   case fromEventNameProxy pEventName of
     CreatedEvent  -> alterState handleCreate resource subscriber
@@ -100,7 +117,7 @@ alterState :: (ResourceStatus -> ResourceStatus) -> Path -> Subscriber -> STM ()
 alterState update p s = do
     rMap <- readTVar (subState s)
     let mtOld = Map.lookup p rMap
-    -- WARNING: If we ever change the handle functions to not error out - we need to make sure to not add a WaitForCreate to the map:
+    -- WARNING: If we ever change the handle functions to not error out - we need to make sure to not add a WaitForCreate to the map!
     tStatus <- maybe (newTVar (WaitForCreate 0)) return mtOld
 
     modifyTVar' tStatus update
