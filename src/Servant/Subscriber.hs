@@ -62,7 +62,11 @@ type ResourceStatusMap = Map Path (TVar ResourceStatus)
 
   Thanks to STM we get a performant subscriber with no need for any weak reference tricks- we can fully rely on automatic garbage collection (and a little reference counter).
 --}
-data ResourceStatus = WaitForCreate ReferenceCount | Created | Modified Revision | Deleted deriving (Eq, Show)
+data ResourceStatus = WaitForCreate ReferenceCount
+  | Created
+  | Modified Revision
+  | Deleted
+  deriving (Eq, Show)
 
 data Subscriber = Subscriber {
   {--

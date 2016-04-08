@@ -52,8 +52,8 @@ toWaiRequest r = Wai.defaultRequest {
     , Wai.queryString = H.queryTextToQuery . rQuery $ r
     , Wai.rawQueryString = B.toByteString . H.renderQueryText True . rQuery $ r
     , Wai.requestHeaders = toHTTPHeaders . rHeaders $ r
-    , Wai.requestBody = encodedBody
-    , Wai.requestBodyLength = BS.length encodedBody
+    , Wai.requestBody = return encodedBody
+    , Wai.requestBodyLength = Wai.KnownLength . fromIntegral . BS.length $ encodedBody
     }
   where encodedBody = T.encodeUtf8 . rBody $ r
 

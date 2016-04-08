@@ -18,9 +18,11 @@ library
   exposed-modules:     Lib
                      , Servant.Subscriber
                      , Servant.Subscriber.Client
+                     , Servant.Subscriber.Request
                      , Servant.Subscriber.Subscribable
   build-depends:       aeson
                      , base >= 4.7 && < 5
+                     , blaze-builder
                      , bytestring
                      , case-insensitive
                      , containers
