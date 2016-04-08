@@ -16,10 +16,16 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Lib
+                     , Servant.Subscriber
+                     , Servant.Subscriber.Client
+                     , Servant.Subscriber.Subscribable
   build-depends:       aeson
                      , base >= 4.7 && < 5
+                     , bytestring
+                     , case-insensitive
                      , containers
                      , directory >= 1.2.2.0
+                     , http-types
                      , network-uri
                      , servant
                      , servant-server

@@ -1,15 +1,22 @@
 module Servant.Subscriber.Client where
 
 
-import           Control.Concurrent.STM.TVar   (TVar)
-import           Data.Aeson
-import           Data.IntMap                   (IntMap)
-import qualified Data.IntMap                   as IntMap
-import           Data.Map                      (Map)
-import           Data.Text                     (Text)
-import           Data.Time
-import           Network.WebSockets.Connection as WS
-import           Servant.Server
+
+-- | Any message from the server is a Response.
+data Response = Response {
+      responseResource  :: Url
+    , responseEventName :: EventName
+    -- | Response data - Nothing on DeletedEvent:
+    , responseData      :: Maybe ResponseData
+    }
+  | ServerError Url EventName ServantErr
+  | RequestError Request RequestError
+  deriving Generic
+
+data RequestError = ResourceNotAvailable | SubscriptionNotAllowed deriving (Show, Generic)
+
+
+
 
 data Client =
   Client {

@@ -1,6 +1,5 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DataKinds #-}
 
 
@@ -139,26 +138,3 @@ handleModify :: ResourceStatus -> ResourceStatus
 handleModify (Modified n) = Modified (n + 1)
 handleModify Created = Modified 1
 handleModify _ = error "Resource can not be modified - it does not exist!"
-
-
-
-data SubscribeAction = SubScribe EventName | Unsubscribe EventName
-
--- | Any message from the client is a 'Request':
-data Request = Request {
-  subscribe :: SubscribeAction
-, resource :: Url
-}
-
--- | Any message from the server is a Response.
-data Response = Response {
-      responseResource  :: Url
-    , responseEventName :: EventName
-    -- | Response data - Nothing on DeletedEvent:
-    , responseData      :: Maybe ResponseData
-    }
-  | ServerError Url EventName ServantErr
-  | RequestError Request RequestError
-  deriving Generic
-
-data RequestError = ResourceNotAvailable | SubscriptionNotAllowed deriving (Show, Generic)

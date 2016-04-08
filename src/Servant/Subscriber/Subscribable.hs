@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -10,14 +11,12 @@
 {-# LANGUAGE UndecidableInstances  #-}
 
 
-
-
-
-
 module Servant.Subscriber.Subscribable where
 
+import           Data.Aeson          (FromJSON)
 import           Data.Proxy
 import           GHC.Exts            (Constraint)
+import           GHC.Generics
 import           GHC.TypeLits
 import           Servant
 import           Servant.Utils.Links
@@ -78,7 +77,9 @@ type family Elem e es :: Constraint where
 --------------------------------------------------------------------------------
 
 
-data EventName = CreatedEvent | ModifiedEvent | DeletedEvent deriving (Eq, Ord, Show)
+data EventName = CreatedEvent | ModifiedEvent | DeletedEvent deriving (Eq, Generic, Ord, Show)
+
+instance FromJSON EventName
 
 class EventNameFromProxy (a :: EventName) where
   fromEventNameProxy :: Proxy a -> EventName
