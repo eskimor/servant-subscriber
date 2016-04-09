@@ -2,7 +2,7 @@
 module Servant.Subscriber.Client where
 
 import qualified Blaze.ByteString.Builder        as B
-import           Control.Concurrent.STM          (STM, retry, atomically)
+import           Control.Concurrent.STM          (STM, atomically, retry)
 import           Control.Concurrent.STM.TVar
 import           Data.Aeson
 import qualified Data.ByteString                 as BS
@@ -59,21 +59,26 @@ monitorChanges c = do
 
 getChanges :: Client -> STM [(Url, ResourceStatus)]
 getChanges c = do
-  ws <- readTVar $ watches c
-  newValues <- mapM (readTVar . monitor) ws
-  let oldValues = map oldStatus ws
-  let changed = zipWith (/=) oldValues newValues
-  let preResult = zipWith (\sm new -> (uri sm, new)) ws newValues
-  let result = map snd . filter fst $ zip changed preResult
-  if null result -- No changes :-(
-    then retry
-    else do
-      writeTVar (watches c)
-          $ filter (stillWatching . oldStatus)
-          . zipWith updateOldStatus newValues $ ws
-      return result
+      ws <- readTVar $ watches c
+      newValues <- mapM (readTVar . monitor) ws
+      let oldValues = map oldStatus ws
+      let changed = zipWith (/=) oldValues newValues
+      let preResult = zipWith (\sm new -> (uri sm, new)) ws newValues
+      let onlyChanges = filterByList changed preResult
+      let result = filter (ignoreWaitForCreate . snd) onlyChanges
+      if null result -- No changes :-(
+        then retry
+        else do
+          writeTVar (watches c)
+              $ filter (stillWatching . oldStatus)
+              . zipWith updateOldStatus newValues $ ws
+          return result
+  where
+    ignoreWaitForCreate :: ResourceStatus -> Bool
+    ignoreWaitForCreate (WaitForCreate _) = False
+    ignoreWaitForCreate _ = True
 
-
+    filterByList bools vals = map snd . filter fst $ zip bools vals
 
 updateOldStatus :: ResourceStatus -> StatusMonitor -> StatusMonitor
 updateOldStatus new s = s { oldStatus = new}
