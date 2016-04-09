@@ -64,7 +64,7 @@ type ResourceStatusMap = Map Path (TVar ResourceStatus)
 --}
 data ResourceStatus = WaitForCreate ReferenceCount
   | Created
-  | Modified Revision
+  | Modified Revision -- |< Watching for 'Modified' implies watching for 'Deleted'
   | Deleted
   deriving (Eq, Show)
 

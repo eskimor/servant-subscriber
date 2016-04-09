@@ -1,7 +1,9 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Servant.Subscriber.Client where
 
 import qualified Blaze.ByteString.Builder        as B
-import           Control.Concurrent.STM.TVar     (TVar)
+import           Control.Concurrent.STM          (STM, retry, atomically)
+import           Control.Concurrent.STM.TVar
 import           Data.Aeson
 import qualified Data.ByteString                 as BS
 import qualified Data.CaseInsensitive            as Case
@@ -36,5 +38,47 @@ data Response = Response {
 data RequestError = ResourceNotAvailable | SubscriptionNotAllowed deriving (Show, Generic)
 
 data Client = Client {
-    watches :: [(Url, TVar ResourceStatus)]
+    watches       :: !(TVar [StatusMonitor])
+  , readRequest   :: IO Request
+  , writeResponse :: IO Response
   }
+
+data StatusMonitor = StatusMonitor {
+  uri       :: !Url
+, monitor   :: !(TVar ResourceStatus)
+, oldStatus :: !ResourceStatus
+}
+
+run :: Client -> IO ()
+run c = undefined
+
+monitorChanges :: Client -> IO ()
+monitorChanges c = do
+  changes <- atomically $ getChanges c
+  error "Not yet implemented"
+
+getChanges :: Client -> STM [(Url, ResourceStatus)]
+getChanges c = do
+  ws <- readTVar $ watches c
+  newValues <- mapM (readTVar . monitor) ws
+  let oldValues = map oldStatus ws
+  let changed = zipWith (/=) oldValues newValues
+  let preResult = zipWith (\sm new -> (uri sm, new)) ws newValues
+  let result = map snd . filter fst $ zip changed preResult
+  if null result -- No changes :-(
+    then retry
+    else do
+      writeTVar (watches c)
+          $ filter (stillWatching . oldStatus)
+          . zipWith updateOldStatus newValues $ ws
+      return result
+
+
+
+updateOldStatus :: ResourceStatus -> StatusMonitor -> StatusMonitor
+updateOldStatus new s = s { oldStatus = new}
+
+stillWatching :: ResourceStatus -> Bool
+stillWatching (WaitForCreate _) = True -- Just a new waiting client appeared
+stillWatching (Modified _) =  True -- We are watching for any modification
+stillWatching _ = False -- All other events are one-shot
