@@ -32,13 +32,11 @@ instance Backend Wai.Application where
       path = Path . T.decodeUtf8 $ Wai.rawPathInfo req
 
 
-toResponse :: EventName -> Path -> Wai.Response -> Response
-toResponse c event path (Wai.ResponseBuilder status headers builder)=
+fromWaiResponse :: Wai.Response -> Response
+fromWaiResponse (Wai.ResponseBuilder status headers builder)=
     writeResponse c Response {
-      responseResource = path
-    , responseEventName = event
-    , responseStatus = fromHTTPStatus status
-    , responseHeaders = fromHTTPHeaders headers
-    , responseData = T.decodeUtf8 . toByteString builder
+    httpStatus = fromHTTPStatus status
+    , httpHeaders = fromHTTPHeaders headers
+    , httpBody = JSONBody . B.toByteString $ builder
     }
-sendResponse _ _ _ _ = error "I am sorry - this 'Response' type is not yet implemented in servant-subscriber!"
+sendResponse _ = error "I am sorry - this 'Response' type is not yet implemented in servant-subscriber!"

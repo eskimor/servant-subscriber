@@ -28,7 +28,7 @@ import           Servant.Subscriber.Response
 
 data ResponseReceived = ResponseReceived
 
-type Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
+type Application = HttpRequest -> (HttpResponse -> IO ResponseReceived) -> IO ResponseReceived
 
 class Backend a where
   requestResource :: a -> Application

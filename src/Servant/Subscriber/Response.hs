@@ -42,13 +42,33 @@ instance ToJSON Response
 data HttpResponse = HttpResponse {
   httpStatus  :: !Status
 , httpHeaders :: !ResponseHeaders
-, httpBody    :: Text
+, httpBody    :: JSONBody
 } deriving Generic
 
 instance ToJSON HttpResponse
+
+
+data Status = Status {
+  statusCode    :: !Int
+, statusMessage :: !Text
+} deriving Generic
+
+instance ToJSON Status
+
+data JSONBody = JSONBody Builder
+
+instance ToJSON JSONBody where
+  toJSON (JSONBody b) = parse value (B.toLazyByteString b)
+  -- toEncoding = Encoding
 
 fromHTTPHeader :: H.Header -> ResponseHeader
 fromHTTPHeader = bimap (Case.original . T.decodeUtf8) T.decodeUtf8
 
 fromHTTPHeaders :: H.ResponsHeaders -> ResponseHeaders
 fromHTTPHeaders = map fromHTTPHeader
+
+fromHTTPStatus :: H.Status -> Status
+fromHTTPStatus s = Status {
+  statusCode = H.statusCode s
+, statusMessage = T.decodeUtf8 . H.statusMessage $ s
+}

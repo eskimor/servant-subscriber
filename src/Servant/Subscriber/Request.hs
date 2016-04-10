@@ -37,8 +37,8 @@ instance FromJSON SubscribeAction
 -- | Any message from the client is a 'Request':
 -- Currently you can only subscribe to 'GET' method endpoints.
 data Request = Request {
-  rSubscribe :: !SubscribeAction
-, httpData   :: !HttpRequest
+  rAction  :: !SubscribeAction
+, httpData :: !HttpRequest
 } deriving Generic
 
 instance FromJSON Request
