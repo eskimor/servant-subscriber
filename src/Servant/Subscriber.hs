@@ -1,7 +1,7 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE DataKinds #-}
-
+{-# LANGUAGE DeriveGeneric #-}
 
 
 module Servant.Subscriber where
@@ -30,11 +30,8 @@ import Servant.Subscriber.Subscribable
 
 type ClientId = Int
 type ReferenceCount = Int
-type Url = Text
-data ResponseData = forall v. ToJSON v => ResponseData v
-
 type Revision = Int
-newtype Path = Path Text deriving (Eq, Ord, Show)
+newtype Path = Path Text deriving (Eq, Generic, Ord, Show)
 type ResourceStatusMap = Map Path (TVar ResourceStatus)
 
 {--
@@ -67,6 +64,7 @@ data ResourceStatus = WaitForCreate ReferenceCount
   | Modified Revision -- |< Watching for 'Modified' implies watching for 'Deleted'
   | Deleted
   deriving (Eq, Show)
+
 
 data Subscriber = Subscriber {
   {--

@@ -29,21 +29,28 @@ import           Servant.Subscriber.Subscribable
 type RequestHeader = (Text, Text)
 type RequestHeaders = [RequestHeader]
 
+data SubscribeAction = SubScribe EventName | Unsubscribe EventName deriving (Generic, Show)
+
+instance FromJSON SubscribeAction
+
+
 -- | Any message from the client is a 'Request':
 -- Currently you can only subscribe to 'GET' method endpoints.
 data Request = Request {
-  rSubscribe :: SubscribeAction
-, rPath      :: [Text]
-, rHeaders   :: RequestHeaders
-, rQuery     :: H.QueryText
-, rBody      :: Text
+  rSubscribe :: !SubscribeAction
+, httpData   :: !HttpRequest
 } deriving Generic
 
 instance FromJSON Request
 
-data SubscribeAction = SubScribe EventName | Unsubscribe EventName deriving (Generic, Show)
+data HttpRequest = HttpRequest {
+  httpPath    :: !Path
+, httpHeaders :: RequestHeaders
+, httpQuery   :: H.QueryText
+, httpBody    :: Text
+} deriving Generic
 
-instance FromJSON SubscribeAction
+instance FromJSON HttpRequest
 
 toWaiRequest :: Request -> Wai.Request
 toWaiRequest r = Wai.defaultRequest {
@@ -56,7 +63,6 @@ toWaiRequest r = Wai.defaultRequest {
     , Wai.requestBodyLength = Wai.KnownLength . fromIntegral . BS.length $ encodedBody
     }
   where encodedBody = T.encodeUtf8 . rBody $ r
-
 
 toHTTPHeader :: RequestHeader -> H.Header
 toHTTPHeader = bimap (Case.mk . T.encodeUtf8) T.encodeUtf8

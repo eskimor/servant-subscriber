@@ -17,8 +17,11 @@ library
   hs-source-dirs:      src
   exposed-modules:     Lib
                      , Servant.Subscriber
+                     , Servant.Subscriber.Backend
+                     , Servant.Subscriber.Backend.Wai
                      , Servant.Subscriber.Client
                      , Servant.Subscriber.Request
+                     , Servant.Subscriber.Response
                      , Servant.Subscriber.Subscribable
   build-depends:       aeson
                      , base >= 4.7 && < 5
