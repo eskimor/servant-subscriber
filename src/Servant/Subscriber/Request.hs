@@ -55,6 +55,8 @@ instance FromJSON HttpRequest
 
 data RequestError = RequestParseError deriving (Show, Generic)
 
+instance ToJSON RequestError
+
 newtype RequestBody = RequestBody Value
 
 instance FromJSON RequestBody where

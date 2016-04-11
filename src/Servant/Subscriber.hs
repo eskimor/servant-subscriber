@@ -117,6 +117,8 @@ notify subscriber pApi pEventName pEndpoint getLink = do
     DeletedEvent  -> alterState handleDelete resource subscriber
     ModifiedEvent -> alterState handleModify resource subscriber
 
+lookupState :: Path -> Subscriber -> STM (Maybe (TVar ResourceStatus))
+lookupState p s = Map.lookup p <$> readTVar (subState s)
 
 alterState :: (ResourceStatus -> ResourceStatus) -> Path -> Subscriber -> STM ()
 alterState update p s = do
@@ -129,7 +131,8 @@ alterState update p s = do
     new <- readTVar tStatus
     case mtOld of
       Nothing -> writeTVar (subState s) (Map.insert p tStatus rMap)
-      Just _ ->  when (new == Deleted) $ writeTVar (subState s) (Map.delete p rMap)
+      Just _ ->  when (new == Deleted || new == WaitForCreate 0)
+                   $ writeTVar (subState s) (Map.delete p rMap)
 
 handleCreate :: ResourceStatus -> ResourceStatus
 handleCreate (WaitForCreate _) = Created
@@ -144,3 +147,17 @@ handleModify :: ResourceStatus -> ResourceStatus
 handleModify (Modified n) = Modified (n + 1)
 handleModify Created = Modified 1
 handleModify _ = error "Resource can not be modified - it does not exist!"
+
+handleNewWaitingClient :: ResourceStatus -> ResourceStatus
+handleNewWaitingClient (WaitForCreate n) = WaitForCreate $ n + 1
+handleNewWaitingClient s = s
+
+handleDeadWaitingClient :: ResourceStatus -> ResourceStatus
+handleDeadWaitingClient (WaitForCreate n) = WaitForCreate $ n - 1
+handleDeadWaitingClient s = s
+
+toEventName :: ResourceStatus -> Maybe EventName
+toEventName (WaitForCreate _) = Nothing
+toEventName Created           = Just CreatedEvent
+toEventName (Modified _)      = Just ModifiedEvent
+toEventName Deleted           = Just DeletedEvent

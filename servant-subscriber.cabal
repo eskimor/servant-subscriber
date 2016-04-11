@@ -24,6 +24,7 @@ library
                      , Servant.Subscriber.Response
                      , Servant.Subscriber.Subscribable
   build-depends:       aeson >= 0.11
+                     , async
                      , attoparsec
                      , base >= 4.7 && < 5
                      , blaze-builder

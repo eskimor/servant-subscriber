@@ -15,6 +15,7 @@ import           Data.IntMap                     (IntMap)
 import qualified Data.IntMap                     as IntMap
 import           Data.Map                        (Map)
 import           Data.Text                       (Text)
+import qualified Data.Text                       as T
 import qualified Data.Text.Encoding              as T
 import           Data.Time
 import           GHC.Generics
@@ -27,17 +28,18 @@ import           Servant.Server
 import           Data.Attoparsec.ByteString      (parseOnly)
 import           Data.Bifunctor
 import           Servant.Subscriber
-import           Servant.Subscriber.Request
+import qualified Servant.Subscriber.Request      as R
 import           Servant.Subscriber.Subscribable
 
-type ResponseHeader = RequestHeader
-type ResponseHeaders = RequestHeaders
+type ResponseHeader = R.RequestHeader
+type ResponseHeaders = R.RequestHeaders
 
 -- | Any message from the server is a Response.
 data Response =
     Response !Path !EventName !HttpResponse
-  | ServerError !Path !ServantErr
-  | RequestError !Path !SubscribeAction !RequestError
+  | DeletedResponse !Path
+  | ServerError !Path !HttpResponse
+  | RequestError !Path !R.SubscribeAction !R.RequestError
   deriving Generic
 
 instance ToJSON Response
@@ -49,7 +51,6 @@ data HttpResponse = HttpResponse {
 } deriving Generic
 
 instance ToJSON HttpResponse
-
 
 data Status = Status {
   statusCode    :: !Int
@@ -78,4 +79,11 @@ fromHTTPStatus :: H.Status -> Status
 fromHTTPStatus s = Status {
   statusCode = H.statusCode s
 , statusMessage = T.decodeUtf8 . H.statusMessage $ s
+}
+
+fromServantError :: ServantErr -> HttpResponse
+fromServantError err =  HttpResponse {
+  httpStatus = Status (errHTTPCode err) (T.pack $ errReasonPhrase err)
+, httpHeaders = fromHTTPHeaders . errHeaders $ err
+, httpBody = ResponseBody . B.fromLazyByteString . errBody $ err
 }

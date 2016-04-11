@@ -13,7 +13,7 @@
 
 module Servant.Subscriber.Subscribable where
 
-import           Data.Aeson          (FromJSON)
+import           Data.Aeson          (FromJSON, ToJSON)
 import           Data.Proxy
 import           GHC.Exts            (Constraint)
 import           GHC.Generics
@@ -80,6 +80,7 @@ type family Elem e es :: Constraint where
 data EventName = CreatedEvent | ModifiedEvent | DeletedEvent deriving (Eq, Generic, Ord, Show)
 
 instance FromJSON EventName
+instance ToJSON EventName
 
 class EventNameFromProxy (a :: EventName) where
   fromEventNameProxy :: Proxy a -> EventName
