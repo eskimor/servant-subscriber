@@ -7,6 +7,8 @@ import           Control.Concurrent.STM          (STM, atomically, retry)
 import           Control.Concurrent.STM.TVar
 import           Control.Monad                   (void)
 import           Data.Aeson
+import           Data.Aeson.Parser               (value)
+import           Data.Aeson.Types                (unsafeToEncoding)
 import qualified Data.ByteString                 as BS
 import qualified Data.CaseInsensitive            as Case
 import           Data.IntMap                     (IntMap)
@@ -22,6 +24,7 @@ import qualified Network.Wai.Internal            as Wai
 import           Network.WebSockets.Connection   as WS
 import           Servant.Server
 
+import           Data.Attoparsec.ByteString      (parseOnly)
 import           Data.Bifunctor
 import           Servant.Subscriber
 import           Servant.Subscriber.Request
@@ -42,7 +45,7 @@ instance ToJSON Response
 data HttpResponse = HttpResponse {
   httpStatus  :: !Status
 , httpHeaders :: !ResponseHeaders
-, httpBody    :: JSONBody
+, httpBody    :: ResponseBody
 } deriving Generic
 
 instance ToJSON HttpResponse
@@ -55,16 +58,20 @@ data Status = Status {
 
 instance ToJSON Status
 
-data JSONBody = JSONBody Builder
+data ResponseBody = ResponseBody B.Builder
 
-instance ToJSON JSONBody where
-  toJSON (JSONBody b) = parse value (B.toLazyByteString b)
-  -- toEncoding = Encoding
+instance ToJSON ResponseBody where
+  toJSON (ResponseBody b) = getValue $ parseOnly value (B.toByteString b)
+    where
+      getValue r = case r of
+        Left e -> error e
+        Right r -> r
+  toEncoding (ResponseBody b) = unsafeToEncoding b -- A no-op - like it should be :-)
 
 fromHTTPHeader :: H.Header -> ResponseHeader
-fromHTTPHeader = bimap (Case.original . T.decodeUtf8) T.decodeUtf8
+fromHTTPHeader = bimap (T.decodeUtf8 . Case.original) T.decodeUtf8
 
-fromHTTPHeaders :: H.ResponsHeaders -> ResponseHeaders
+fromHTTPHeaders :: H.ResponseHeaders -> ResponseHeaders
 fromHTTPHeaders = map fromHTTPHeader
 
 fromHTTPStatus :: H.Status -> Status

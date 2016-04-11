@@ -2,6 +2,8 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 
 
 module Servant.Subscriber where
@@ -31,7 +33,9 @@ import Servant.Subscriber.Subscribable
 type ClientId = Int
 type ReferenceCount = Int
 type Revision = Int
-newtype Path = Path Text deriving (Eq, Generic, Ord, Show)
+newtype Path = Path Text deriving (Eq, Generic, Ord, Show, ToJSON, FromJSON)
+
+
 type ResourceStatusMap = Map Path (TVar ResourceStatus)
 
 {--

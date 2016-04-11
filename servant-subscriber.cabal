@@ -23,7 +23,8 @@ library
                      , Servant.Subscriber.Request
                      , Servant.Subscriber.Response
                      , Servant.Subscriber.Subscribable
-  build-depends:       aeson
+  build-depends:       aeson >= 0.11
+                     , attoparsec
                      , base >= 4.7 && < 5
                      , blaze-builder
                      , bytestring

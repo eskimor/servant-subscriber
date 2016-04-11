@@ -26,8 +26,6 @@ import           Servant.Subscriber
 import           Servant.Subscriber.Request
 import           Servant.Subscriber.Subscribable
 
-data RequestError = ResourceNotAvailable | SubscriptionNotAllowed deriving (Show, Generic)
-
 data Client = Client {
     watches       :: !(TVar [StatusMonitor])
   , readRequest   :: !(IO Request)

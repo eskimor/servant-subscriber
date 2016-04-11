@@ -4,6 +4,7 @@ module Servant.Subscriber.Request where
 import qualified Blaze.ByteString.Builder        as B
 import           Control.Concurrent.STM.TVar     (TVar)
 import           Data.Aeson
+-- import           Data.Aeson.Encode.Builder       as AesonBuilder
 import qualified Data.ByteString                 as BS
 import qualified Data.CaseInsensitive            as Case
 import           Data.IntMap                     (IntMap)
@@ -47,22 +48,21 @@ data HttpRequest = HttpRequest {
   httpPath    :: !Path
 , httpHeaders :: RequestHeaders
 , httpQuery   :: H.QueryText
-, httpBody    :: Text
+, httpBody    :: RequestBody
 } deriving Generic
 
 instance FromJSON HttpRequest
 
-toWaiRequest :: Request -> Wai.Request
-toWaiRequest r = Wai.defaultRequest {
-      Wai.pathInfo = rPath r
-    , Wai.rawPathInfo = B.toByteString . H.encodePathSegments . rPath $ r
-    , Wai.queryString = H.queryTextToQuery . rQuery $ r
-    , Wai.rawQueryString = B.toByteString . H.renderQueryText True . rQuery $ r
-    , Wai.requestHeaders = toHTTPHeaders . rHeaders $ r
-    , Wai.requestBody = return encodedBody
-    , Wai.requestBodyLength = Wai.KnownLength . fromIntegral . BS.length $ encodedBody
-    }
-  where encodedBody = T.encodeUtf8 . rBody $ r
+data RequestError = RequestParseError deriving (Show, Generic)
+
+newtype RequestBody = RequestBody Value
+
+instance FromJSON RequestBody where
+  parseJSON = return . RequestBody
+
+instance ToJSON RequestBody where
+  toJSON (RequestBody v) = v
+  -- toEncoding (RequestBody v) = Encoding . AesonBuilder.encodeToBuilder
 
 toHTTPHeader :: RequestHeader -> H.Header
 toHTTPHeader = bimap (Case.mk . T.encodeUtf8) T.encodeUtf8

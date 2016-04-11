@@ -11,6 +11,7 @@ import qualified Data.ByteString               as BS
 import qualified Data.CaseInsensitive          as Case
 import           Data.IntMap                   (IntMap)
 import qualified Data.IntMap                   as IntMap
+import           Data.IORef
 import           Data.Map                      (Map)
 import           Data.Text                     (Text)
 import qualified Data.Text.Encoding            as T
@@ -27,16 +28,44 @@ import           Servant.Subscriber.Response
 
 
 instance Backend Wai.Application where
-  requestResource app req c = void $ app req (sendResponse c path event)
-    where
-      path = Path . T.decodeUtf8 $ Wai.rawPathInfo req
+  requestResource app req sendResponse = do
+      waiReq <- toWaiRequest req
+      app waiReq waiWriteResponse
+      return ResponseReceived
+
+waiSendResponse :: (Response -> ResponseReceived) -> Wai.Response -> Wai.ResponseReceived
+waiSendResponse sendResponse = fmap fixResponse . sendResponse . fromWaiResponse
+  where fixResponse = const Wai.ResponseReceived
+
+toWaiRequest :: HttpRequest -> IO Wai.Request
+toWaiRequest r = do
+  waiBody <- mkWaiRequestBody encodedBody
+  return Wai.defaultRequest {
+      Wai.pathInfo = H.decodePathSegments . rawPath . httpPath $ r
+    , Wai.rawPathInfo = rawPath r
+    , Wai.queryString = H.queryTextToQuery . httpQuery $ r
+    , Wai.rawQueryString = B.toByteString . H.renderQueryText True . httpQuery $ r
+    , Wai.requestHeaders = toHTTPHeaders . httpHeaders $ r
+    , Wai.requestBody = waiBody
+    , Wai.requestBodyLength = Wai.KnownLength . fromIntegral . BS.length $ encodedBody
+    }
+  where
+    rawPath (Path raw) = raw
+    encodedBody = toByteString . fromEncoding . toEncoding . httpBody $ r
+
+mkWaiRequestBody :: ByteString -> IO (IO ByteString)
+mkWaiRequestBody b = do
+  var <- newIORef bs
+  return $ do
+    readIORef var
+    writeIORef var BS.empty
 
 
 fromWaiResponse :: Wai.Response -> Response
 fromWaiResponse (Wai.ResponseBuilder status headers builder)=
-    writeResponse c Response {
-    httpStatus = fromHTTPStatus status
+    sendResponse c Response {
+      httpStatus = fromHTTPStatus status
     , httpHeaders = fromHTTPHeaders headers
-    , httpBody = JSONBody . B.toByteString $ builder
+    , httpBody = ResponseBody builder
     }
 sendResponse _ = error "I am sorry - this 'Response' type is not yet implemented in servant-subscriber!"
