@@ -36,10 +36,10 @@ type ResponseHeaders = R.RequestHeaders
 
 -- | Any message from the server is a Response.
 data Response =
-    Response !Path !EventName !HttpResponse
+    ModifiedResponse !Path !HttpResponse
   | DeletedResponse !Path
-  | ServerError !Path !HttpResponse
-  | RequestError !Path !R.SubscribeAction !R.RequestError
+  | Unsubscribed !Path
+  | RequestError !Path !R.SubscribeAction !RequestError
   deriving Generic
 
 instance ToJSON Response
@@ -48,7 +48,7 @@ data HttpResponse = HttpResponse {
   httpStatus  :: !Status
 , httpHeaders :: !ResponseHeaders
 , httpBody    :: ResponseBody
-} deriving Generic
+} deriving (Generic, Show)
 
 instance ToJSON HttpResponse
 
@@ -58,6 +58,15 @@ data Status = Status {
 } deriving Generic
 
 instance ToJSON Status
+
+-- | Your subscription did not work out:
+data RequestError = RequestParseError
+  | ServerError !HttpResponse
+  | NoSuchSubscription
+  | AlreadySubscribed deriving (Show, Generic)
+
+instance ToJSON RequestError
+
 
 data ResponseBody = ResponseBody B.Builder
 

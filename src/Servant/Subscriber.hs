@@ -28,7 +28,14 @@ import           Servant.Server
 import Servant.Utils.Links (IsElem, HasLink, MkLink, safeLink)
 import Control.Monad
 
+
+import System.Mem.Weak
 import Servant.Subscriber.Subscribable
+import Control.Monad.Trans.Maybe
+import Control.Monad.IO.Class
+import Control.Concurrent.STM
+import Control.Monad.Trans.Class
+import GHC.Conc
 
 type ClientId = Int
 type ReferenceCount = Int
@@ -36,39 +43,19 @@ type Revision = Int
 newtype Path = Path Text deriving (Eq, Generic, Ord, Show, ToJSON, FromJSON)
 
 
-type ResourceStatusMap = Map Path (TVar ResourceStatus)
+type ResourceStatusMap = Map Path (TVar (RefCounted ResourceStatus))
 
-{--
-  ResourceStatus could only be the revision integer and creation and deletion could be solely represented
-  by adding/removing it to our resources map. The problem is, this does not scale very well, as then _every_ update wakes up
-  _all_ clients and they have to check whether they are affected by the change! (They are using STM's 'retry'.)
-
-  To avoid that, we use the following mechanism: Clients are allowed to create elements in our state map too:
-  If a client wants to subscribe to a 'CreateEvent' event, it will just insert the corresponding entry marked as 'WaitForCreate 1'.
-  Any additional interested client will increment the value.
-  Then the client can just monitor the entry it just created and on creation the server will simply set it to 'Created' instead
-  of adding a new entry. If no client waited for the creation, then obviously the server will create a new entry, marked 'Created'.
-
-  If a client disconnects before the resource was created, an exception handler will decrement the 'WaitForCreate' value and if it is 0 will remove the entry from the map.
-  This way we make sure to not gather stale entries.
-
-  The more interesting part is when a resource gets deleted: It will obviously get removed from the map - but monitoring clients
-  would not notice that, so in addition the status will be changed to 'Deleted'. Once all clients have stopped monitoring this resource
-  it will be garbage collected as it is no longer present in the map.
-
-  So a client will query the map in an atomic operation - inserting any nodes it wants to monitor which are not yet present. Afterwards
-  it can start a second atomic operation querying the previously retrieved resources.
-  This second atomic operation can then simply be 'retry'ed to get notified about any changes - changes to the map will no longer wake the client!
-  This is ok as there are no changes to the map that could be of any interest for the client.
-
-  Thanks to STM we get a performant subscriber with no need for any weak reference tricks- we can fully rely on automatic garbage collection (and a little reference counter).
---}
-data ResourceStatus = WaitForCreate ReferenceCount
-  | Created
-  | Modified Revision -- |< Watching for 'Modified' implies watching for 'Deleted'
+data ResourceStatus = Modified Revision -- |< Watching for 'Modified' implies watching for 'Deleted'
   | Deleted
   deriving (Eq, Show)
 
+data RefCounted a = RefCounted {
+ refCount :: ReferenceCount
+, refValue :: a
+}
+
+instance Functor RefCounted where
+  fmap f (RefCounted c v) = RefCounted c (f v)
 
 data Subscriber = Subscriber {
   {--
@@ -102,62 +89,52 @@ data Subscriber = Subscriber {
   TODO: Example!
 --}
 notify :: (IsElem endpoint api, HasLink endpoint
-  , IsValidEndpoint endpoint, IsSubscribable endpoint api eventName
-  , EventNameFromProxy eventName)
+  , IsValidEndpoint endpoint, IsSubscribable endpoint api)
   => Subscriber
   -> Proxy api
-  -> Proxy (eventName :: EventName)
+  -> Event
   -> Proxy endpoint
   -> (MkLink endpoint -> URI)
   -> STM ()
-notify subscriber pApi pEventName pEndpoint getLink = do
+notify subscriber pApi event pEndpoint getLink = do
   let resource = Path . T.pack . uriPath $ getLink (safeLink pApi pEndpoint)
-  case fromEventNameProxy pEventName of
-    CreatedEvent  -> alterState handleCreate resource subscriber
-    DeletedEvent  -> alterState handleDelete resource subscriber
-    ModifiedEvent -> alterState handleModify resource subscriber
+  modifyState event resource subscriber
 
-lookupState :: Path -> Subscriber -> STM (Maybe (TVar ResourceStatus))
-lookupState p s = Map.lookup p <$> readTVar (subState s)
 
-alterState :: (ResourceStatus -> ResourceStatus) -> Path -> Subscriber -> STM ()
-alterState update p s = do
-    rMap <- readTVar (subState s)
-    let mtOld = Map.lookup p rMap
-    -- WARNING: If we ever change the handle functions to not error out - we need to make sure to not add a WaitForCreate to the map!
-    tStatus <- maybe (newTVar (WaitForCreate 0)) return mtOld
 
-    modifyTVar' tStatus update
-    new <- readTVar tStatus
-    case mtOld of
-      Nothing -> writeTVar (subState s) (Map.insert p tStatus rMap)
-      Just _ ->  when (new == Deleted || new == WaitForCreate 0)
-                   $ writeTVar (subState s) (Map.delete p rMap)
+-- | Get a ResourceState - it will be created when not present
+getState :: Path -> Subscriber -> STM (TVar (RefCounted ResourceStatus))
+getState p s = do
+      states <- readTVar $ subState s
+      let mState = Map.lookup p states
+      case mState of
+        Nothing -> do
+           state <- newTVar $ RefCounted 1 (Modified 0)
+           writeTVar (subState s) $ Map.insert p state states
+           return state
+        Just state -> return state
 
-handleCreate :: ResourceStatus -> ResourceStatus
-handleCreate (WaitForCreate _) = Created
-handleCreate _ = error "Resource can not be created - it already exists!" -- If this error ever gets removed - check alterState!
+-- | Unget a previously got ResourceState - make sure you match every call to getState with a call to unGetState!
+unGetState :: Path -> TVar (RefCounted ResourceStatus) -> Subscriber -> STM ()
+unGetState p tv s = do
+  v <- (\a -> a { refCount = refCount a - 1}) <$> readTVar tv
+  if refCount v == 0
+    then modifyTVar' (subState s) (Map.delete p)
+    else writeTVar tv v
 
-handleDelete :: ResourceStatus -> ResourceStatus
-handleDelete (Modified _) = Deleted
-handleDelete Created = Deleted
-handleDelete _ = error "Resource can not be deleted - it does not exist!"
+-- | Modify a ResourceState if it is present in the map, otherwise do nothing.
+modifyState :: (ResourceStatus -> ResourceStatus) -> Path -> Subscriber -> STM ()
+modifyState update p s = do
+  rMap <- readTVar (subState s)
+  maybe (return ()) -- Nothing to modify - fine!
+        (`modifyTVar'` fmap update) $ Map.lookup p rMap
 
-handleModify :: ResourceStatus -> ResourceStatus
-handleModify (Modified n) = Modified (n + 1)
-handleModify Created = Modified 1
-handleModify _ = error "Resource can not be modified - it does not exist!"
+type Event = ResourceStatus -> ResourceStatus
 
-handleNewWaitingClient :: ResourceStatus -> ResourceStatus
-handleNewWaitingClient (WaitForCreate n) = WaitForCreate $ n + 1
-handleNewWaitingClient s = s
+deleteEvent :: Event
+deleteEvent (Modified _) = Deleted
+deleteEvent _ = error "Resource can not be deleted - it does not exist!"
 
-handleDeadWaitingClient :: ResourceStatus -> ResourceStatus
-handleDeadWaitingClient (WaitForCreate n) = WaitForCreate $ n - 1
-handleDeadWaitingClient s = s
-
-toEventName :: ResourceStatus -> Maybe EventName
-toEventName (WaitForCreate _) = Nothing
-toEventName Created           = Just CreatedEvent
-toEventName (Modified _)      = Just ModifiedEvent
-toEventName Deleted           = Just DeletedEvent
+modifyEvent :: Event
+modifyEvent (Modified n) = Modified (n + 1)
+modifyEvent _ = error "Resource can not be modified - it does not exist!"

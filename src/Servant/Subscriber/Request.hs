@@ -30,7 +30,7 @@ import           Servant.Subscriber.Subscribable
 type RequestHeader = (Text, Text)
 type RequestHeaders = [RequestHeader]
 
-data SubscribeAction = SubScribe EventName | Unsubscribe EventName deriving (Generic, Show)
+data SubscribeAction = SubScribe | Unsubscribe deriving (Generic, Show)
 
 instance FromJSON SubscribeAction
 
@@ -53,9 +53,6 @@ data HttpRequest = HttpRequest {
 
 instance FromJSON HttpRequest
 
-data RequestError = RequestParseError deriving (Show, Generic)
-
-instance ToJSON RequestError
 
 newtype RequestBody = RequestBody Value
 
@@ -71,3 +68,6 @@ toHTTPHeader = bimap (Case.mk . T.encodeUtf8) T.encodeUtf8
 
 toHTTPHeaders :: RequestHeaders -> H.RequestHeaders
 toHTTPHeaders = map toHTTPHeader
+
+requestPath :: Request -> Path
+requestPath = httpPath . httpData

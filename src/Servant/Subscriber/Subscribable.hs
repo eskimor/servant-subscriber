@@ -22,7 +22,7 @@ import           Servant
 import           Servant.Utils.Links
 
 
-data Subscribable (subscriptions :: [EventName])
+data Subscribable
 
 
 -- | You may use this type family to tell the type checker that your custom
@@ -37,22 +37,22 @@ data Subscribable (subscriptions :: [EventName])
 --
 -- Once you have written a HasSubscription instance for CustomThing you are ready to
 -- go.
-type family IsSubscribable' endpoint api (subscription :: EventName) :: Constraint
+type family IsSubscribable' endpoint api :: Constraint
 
 
-type family IsSubscribable endpoint api (subscription :: EventName) :: Constraint where
-    IsSubscribable e (sa :<|> sb) s             = Or (IsSubscribable e sa s) (IsSubscribable e sb s)
-    IsSubscribable sa (Subscribable subscriptions :> sb) s
-                                                = Elem s subscriptions `And` IsElem sa sb
-    IsSubscribable (e :> sa) (e :> sb) s        = IsSubscribable sa sb s
-    IsSubscribable sa (Header sym x :> sb) s    = IsSubscribable sa sb s
-    IsSubscribable sa (ReqBody y x :> sb)  s    = IsSubscribable sa sb s
-    IsSubscribable (Capture z y :> sa) (Capture x y :> sb) s
-                                                = IsSubscribable sa sb s
-    IsSubscribable sa (QueryParam x y :> sb) s  = IsSubscribable sa sb s
-    IsSubscribable sa (QueryParams x y :> sb) s = IsSubscribable sa sb s
-    IsSubscribable sa (QueryFlag x :> sb) s     = IsSubscribable sa sb s
-    IsSubscribable e a s                        = IsSubscribable' e a s
+type family IsSubscribable endpoint api :: Constraint where
+    IsSubscribable e (sa :<|> sb)            = Or (IsSubscribable e sa) (IsSubscribable e sb)
+    IsSubscribable sa (Subscribable :> sb)
+                                                = IsElem sa sb
+    IsSubscribable (e :> sa) (e :> sb)       = IsSubscribable sa sb
+    IsSubscribable sa (Header sym x :> sb)   = IsSubscribable sa sb
+    IsSubscribable sa (ReqBody y x :> sb)    = IsSubscribable sa sb
+    IsSubscribable (Capture z y :> sa) (Capture x y :> sb)
+                                                = IsSubscribable sa sb
+    IsSubscribable sa (QueryParam x y :> sb) = IsSubscribable sa sb
+    IsSubscribable sa (QueryParams x y :> sb)= IsSubscribable sa sb
+    IsSubscribable sa (QueryFlag x :> sb)    = IsSubscribable sa sb
+    IsSubscribable e a                       = IsSubscribable' e a
 
 
 -- | A valid endpoint may only contain Symbols and captures:
@@ -60,8 +60,8 @@ type family IsValidEndpoint endpoint :: Constraint where
   IsValidEndpoint ((sym :: Symbol) :> sub) = IsValidEndpoint sub
   IsValidEndpoint (Capture z y :> sub)     = IsValidEndpoint sub
 
-instance HasServer sublayout context => HasServer (Subscribable s :> sublayout) context where
-  type ServerT (Subscribable s :> sublayout) m = ServerT sublayout m
+instance HasServer sublayout context => HasServer (Subscribable :> sublayout) context where
+  type ServerT (Subscribable :> sublayout) m = ServerT sublayout m
   route _ = route (Proxy :: Proxy sublayout)
 
 -------------- Copied from Servant.Util.Links (they are not exported) ----------
@@ -75,21 +75,3 @@ type family Elem e es :: Constraint where
     Elem y (x ': xs) = Elem y xs
 
 --------------------------------------------------------------------------------
-
-
-data EventName = CreatedEvent | ModifiedEvent | DeletedEvent deriving (Eq, Generic, Ord, Show)
-
-instance FromJSON EventName
-instance ToJSON EventName
-
-class EventNameFromProxy (a :: EventName) where
-  fromEventNameProxy :: Proxy a -> EventName
-
-instance EventNameFromProxy 'CreatedEvent where
-  fromEventNameProxy _ = CreatedEvent
-
-instance EventNameFromProxy 'ModifiedEvent where
-  fromEventNameProxy _ = ModifiedEvent
-
-instance EventNameFromProxy 'DeletedEvent where
-  fromEventNameProxy _ = DeletedEvent

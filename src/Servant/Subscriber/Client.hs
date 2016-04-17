@@ -2,9 +2,9 @@
 module Servant.Subscriber.Client where
 
 import qualified Blaze.ByteString.Builder        as B
+import           Control.Concurrent.Async
 import           Control.Concurrent.STM          (STM, atomically, retry)
 import           Control.Concurrent.STM.TVar
-import Control.Concurrent.Async
 import           Control.Monad                   (void)
 import           Data.Aeson
 import           Data.Bifunctor
@@ -29,80 +29,95 @@ import           Servant.Subscriber.Subscribable
 
 
 data Client = Client {
-    watches       :: !(TVar [StatusMonitor])
+    monitors      :: !(TVar [StatusMonitor])
   , readRequest   :: !(IO Request)
   , writeResponse :: !(Response -> IO ())
   }
 
 data StatusMonitor = StatusMonitor {
   request   :: !Request
-, monitor   :: !(TVar ResourceStatus)
+, monitor   :: !(TVar (RefCounted ResourceStatus))
 , oldStatus :: !ResourceStatus
 }
 
 run :: Backend backend => backend -> Subscriber -> Client -> IO ()
 run b s c = do
-    let work = race (monitorChanges b c) (handleRequests s c)
-    let cleanup = atomically $ do
+  let
+    work    = race (monitorChanges b c) (handleRequests s c)
+    cleanup = atomically $ do
       monitors <- readTVar (watches c)
-      mapM_ (releaseWaitForCreate s) monitors
-    finally work cleanup
+      mapM_ (dropMonitor s) monitors
+  finally work cleanup
 
-handleRequests :: Subscriber -> Client -> IO ()
-handleRequests s c = forever $ do
+
+dropMonitor :: Subscriber -> StatusMonitor -> STM ()
+dropMonitor s m = unGetState (requestPath (request m)) (monitor m) s
+
+
+handleRequests :: Backend backend => backend -> Subscriber -> Client -> IO ()
+handleRequests b s c = forever $ do
     req <- readRequest c
-    atomically $ case rAction req of
-      Subscribe event -> case event of
-        CreatedEvent -> handleSubscribeCreated s c req
-        _ -> handleSubscribe s c req
-      Unsubscribe event -> case event of
-        CreatedEvent -> handleUnsubscribeCreated s c req
-        _ -> handleUnsubscribe s c req
+    case rAction req of
+      Subscribe   -> handleSubscribe b s c req
+      Unsubscribe -> handleUnsubscribe b s c req
 
-handleSubscribe :: Subscriber -> Client -> Request -> STM
-handleSubscribe sub c req = do
-  let path = httpPath . httpData $ req
-  lookupState
+-- TODO: Make sure same resource is only subscribed once! Use 'AlreadySubscribed' error
+handleSubscribe :: Backend backend => backend -> Subscriber -> Client -> Request -> IO ()
+handleSubscribe b sub c req = sendRequest b req $ \ httpResponse -> do
+    let status = statusCode . httpStatus $ httpResponse
+    let path = requestPath req
+    let isGoodStatus = status >= 200 && status < 300 -- For now we only accept success
+    if isGoodStatus
+      then do
+        atomically $ do -- subscribe ..
+          val <- getState path sub
+          modifyTVar' (monitors c) (StatusMonitor req val (refValue val) : )
+        writeResponse c $ ModifiedResponse path httpResponse
+      else
+        writeResponse c $ RequestError path SubscribeAction (ServerError httpResponse)
 
-releaseWaitForCreate :: Subscriber -> StatusMonitor -> STM ()
-releaseWaitForCreate subscriber status = do
-  let path = httpPath . httpData . request $ status
-  v <- readTVar (monitor status)
-  case v of
-    WaitForCreate _ -> alterState handleDeadWaitingClient path s
-    _ -> return ()
-
-
+handleUnsubscribe :: Backend backend => backend -> Subscriber -> Client -> Request -> IO ()
+handleUnsubscribe b sub c req = do
+  atomically $ do
+    ms <- readTVar (monitors c)
+    let mFound = listToMaybe . filter ((== req) . request) $ ms
+    case mFound of
+      Nothing -> return $ RequestError (requestPath req) Unsubscribe NoSuchSubscription
+      Just m -> do
+        dropMonitor sub m
+        writeTVar (monitors c) . filter ((/= req) . request) $ ms
 
 monitorChanges :: Backend backend => backend -> Client -> IO ()
 monitorChanges b c = forever $ do
     changes <- atomically $ getChanges c
     mapM_ (sendUpdate b (writeResponse c)) changes
 
-sendUpdate :: Backend backend => backend -> (Response -> IO ()) -> (Request, EventName) -> IO ()
-sendUpdate b sendResponse (req, DeletedEvent) = sendResponse . DeletedResponse . httpPath . httpData $ req
-sendUpdate b sendResponse (req, event) = sendRequest backend
-  $ \ httpResponse -> do
-    let path = httpPath . httpData $ req
-    sendResponse $ Response path event httpResponse
-    return ResponseReceived
-  return ()
+sendUpdate :: Backend backend => backend -> (Response -> IO ()) -> (Request, ResourceStatus) -> IO ()
+sendUpdate b sendResponse (req, Deleted)    = sendResponse $ DeletedResponse (requestPath req)
+sendUpdate b sendResponse (req, Modified _) = sendServerResponse backend req sendResponse
 
-getChanges :: Client -> STM [(Request, EventName)]
+sendServerResponse :: Backend backend => backend -> Request -> (Response -> IO ()) -> IO ()
+sendServerResponse b req sendResponse = void $ sendRequest b req
+  $ \ httpResponse -> do
+    let path = requestPath req
+    sendResponse $ ModifiedResponse path httpResponse
+    return ResponseReceived
+
+getChanges :: Client -> STM [(Request, ResourceStatus)]
 getChanges c = do
-      ws <- readTVar $ watches c
-      newValues <- mapM (readTVar . monitor) ws
-      let oldValues = map oldStatus ws
+      ms <- readTVar $ monitors c
+      newValues <- mapM (fmap refValue . readTVar . monitor) ms
+      let oldValues = map oldStatus ms
       let changed = zipWith (/=) oldValues newValues
-      let preResult = zipWith (\sm new -> (request sm, new)) ws newValues
-      let onlyChanges = filterByList changed preResult
-      let result = mapMaybe (fmap toEventName) onlyChanges
+      let requests = map request ms
+      let requestValues = zip requests newValues
+      let result = filterByList changed requestValues
       if null result -- No real changes :-(
         then retry
         else do
-          writeTVar (watches c)
+          writeTVar (monitors c)
               $ filter (stillWatching . oldStatus)
-              . zipWith updateOldStatus newValues $ ws
+              . zipWith updateOldStatus newValues $ ms
           return result
   where
     filterByList bools vals = map snd . filter fst $ zip bools vals
@@ -111,6 +126,5 @@ getChanges c = do
     updateOldStatus new s = s { oldStatus = new}
 
     stillWatching :: ResourceStatus -> Bool
-    stillWatching (WaitForCreate _) = True -- Just a new waiting client appeared
     stillWatching (Modified _) =  True -- We are watching for any modification
-    stillWatching _ = False -- All other events are one-shot
+    stillWatching Deleted = False
