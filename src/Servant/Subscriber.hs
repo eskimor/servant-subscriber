@@ -102,9 +102,9 @@ notify subscriber pApi event pEndpoint getLink = do
 
 
 
--- | Get a ResourceState - it will be created when not present
-getState :: Path -> Subscriber -> STM (TVar (RefCounted ResourceStatus))
-getState p s = do
+-- | Subscribe to a ResourceStatus - it will be created when not present
+subscribe :: Path -> Subscriber -> STM (TVar (RefCounted ResourceStatus))
+subscribe p s = do
       states <- readTVar $ subState s
       let mState = Map.lookup p states
       case mState of
@@ -114,27 +114,34 @@ getState p s = do
            return state
         Just state -> return state
 
--- | Unget a previously got ResourceState - make sure you match every call to getState with a call to unGetState!
-unGetState :: Path -> TVar (RefCounted ResourceStatus) -> Subscriber -> STM ()
-unGetState p tv s = do
+-- | Unget a previously got ResourceState - make sure you match every call to subscribe with a call to unsubscribe!
+unsubscribe :: Path -> TVar (RefCounted ResourceStatus) -> Subscriber -> STM ()
+unsubscribe p tv s = do
   v <- (\a -> a { refCount = refCount a - 1}) <$> readTVar tv
   if refCount v == 0
     then modifyTVar' (subState s) (Map.delete p)
     else writeTVar tv v
 
 -- | Modify a ResourceState if it is present in the map, otherwise do nothing.
-modifyState :: (ResourceStatus -> ResourceStatus) -> Path -> Subscriber -> STM ()
-modifyState update p s = do
+modifyState :: Event -> Path -> Subscriber -> STM ()
+modifyState event p s = do
   rMap <- readTVar (subState s)
-  maybe (return ()) -- Nothing to modify - fine!
-        (`modifyTVar'` fmap update) $ Map.lookup p rMap
+  case Map.lookup p rMap of
+    Nothing -> return ()
+    Just refStatus -> do
+      modifyTVar refStatus $ fmap (eventHandler event)
+      when (event == DeleteEvent) $ modifyTVar (subState s) (Map.delete p)
 
-type Event = ResourceStatus -> ResourceStatus
+data Event = DeleteEvent | ModifyEvent deriving (Eq)
 
-deleteEvent :: Event
-deleteEvent (Modified _) = Deleted
-deleteEvent _ = error "Resource can not be deleted - it does not exist!"
+eventHandler :: Event -> ResourceStatus -> ResourceStatus
+eventHandler ModifyEvent = doModify
+eventHandler DeleteEvent = doDelete
 
-modifyEvent :: Event
-modifyEvent (Modified n) = Modified (n + 1)
-modifyEvent _ = error "Resource can not be modified - it does not exist!"
+doDelete :: ResourceStatus -> ResourceStatus
+doDelete (Modified _) = Deleted
+doDelete _ = error "Resource can not be deleted - it does not exist!"
+
+doModify :: ResourceStatus -> ResourceStatus
+doModify (Modified n) = Modified (n + 1)
+doModify _ = error "Resource can not be modified - it does not exist!"

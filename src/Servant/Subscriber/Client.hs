@@ -27,9 +27,10 @@ import           Servant.Subscriber.Request
 import           Servant.Subscriber.Response
 import           Servant.Subscriber.Subscribable
 
+type ClientMonitors = Map Path StatusMonitor
 
 data Client = Client {
-    monitors      :: !(TVar [StatusMonitor])
+    monitors      :: !(TVar ClientMonitors)
   , readRequest   :: !(IO Request)
   , writeResponse :: !(Response -> IO ())
   }
@@ -41,51 +42,63 @@ data StatusMonitor = StatusMonitor {
 }
 
 run :: Backend backend => backend -> Subscriber -> Client -> IO ()
-run b s c = do
+run b sub c = do
   let
-    work    = race (monitorChanges b c) (handleRequests s c)
+    work    = race (monitorChanges b c) (handleRequests sub c)
     cleanup = atomically $ do
       monitors <- readTVar (watches c)
-      mapM_ (dropMonitor s) monitors
+      mapM_ (unsubscribeMonitor sub) monitors
   finally work cleanup
 
+unsubscribeMonitor :: Subscriber -> Monitor -> STM ()
+unsubscribeMonitor sub m =
+  let
+    path = requestPath . request $ m
+    mon = monitor m
+  in
+    unsubscribe path mon sub
 
-dropMonitor :: Subscriber -> StatusMonitor -> STM ()
-dropMonitor s m = unGetState (requestPath (request m)) (monitor m) s
-
+subscribeMonitor :: Subscriber -> Request -> Client -> STM ()
+subscribeMonitor sub req c = do
+  let path = requestPath req
+  tState <- subscribe path sub
+  stateVal <- refValue <$> readTVar tState
+  modifyTVar' (monitors c) . Map.insert path (StatusMonitor req state stateVal)
 
 handleRequests :: Backend backend => backend -> Subscriber -> Client -> IO ()
-handleRequests b s c = forever $ do
+handleRequests b sub c = forever $ do
     req <- readRequest c
     case rAction req of
-      Subscribe   -> handleSubscribe b s c req
-      Unsubscribe -> handleUnsubscribe b s c req
+      Subscribe   -> handleSubscribe b sub c req
+      Unsubscribe -> handleUnsubscribe b sub c req
 
--- TODO: Make sure same resource is only subscribed once! Use 'AlreadySubscribed' error
 handleSubscribe :: Backend backend => backend -> Subscriber -> Client -> Request -> IO ()
 handleSubscribe b sub c req = sendRequest b req $ \ httpResponse -> do
     let status = statusCode . httpStatus $ httpResponse
     let path = requestPath req
     let isGoodStatus = status >= 200 && status < 300 -- For now we only accept success
     if isGoodStatus
-      then do
-        atomically $ do -- subscribe ..
-          val <- getState path sub
-          modifyTVar' (monitors c) (StatusMonitor req val (refValue val) : )
-        writeResponse c $ ModifiedResponse path httpResponse
+      then
+        writeResponse c <<= atomically $ do
+          let path = requestPath req
+          case Map.lookup path (monitors c) of
+            Just _  -> return $ RequestError path SubscribeAction AlreadySubscribed
+            Nothing -> do
+              subscribeMonitor sub req c
+              return $ ModifiedResponse path httpResponse
       else
         writeResponse c $ RequestError path SubscribeAction (ServerError httpResponse)
 
 handleUnsubscribe :: Backend backend => backend -> Subscriber -> Client -> Request -> IO ()
-handleUnsubscribe b sub c req = do
-  atomically $ do
+handleUnsubscribe b sub c req = writeResponse c <<= atomically $ do
+    let path = requestPath req
     ms <- readTVar (monitors c)
-    let mFound = listToMaybe . filter ((== req) . request) $ ms
-    case mFound of
-      Nothing -> return $ RequestError (requestPath req) Unsubscribe NoSuchSubscription
+    case Map.lookup path ms of
+      Nothing -> return $ RequestError path Unsubscribe NoSuchSubscription
       Just m -> do
-        dropMonitor sub m
-        writeTVar (monitors c) . filter ((/= req) . request) $ ms
+        unsubscribeMonitor s m
+        writeTVar (monitors c) $ Map.delete path
+        return $ Unsubscribed path
 
 monitorChanges :: Backend backend => backend -> Client -> IO ()
 monitorChanges b c = forever $ do
@@ -97,15 +110,16 @@ sendUpdate b sendResponse (req, Deleted)    = sendResponse $ DeletedResponse (re
 sendUpdate b sendResponse (req, Modified _) = sendServerResponse backend req sendResponse
 
 sendServerResponse :: Backend backend => backend -> Request -> (Response -> IO ()) -> IO ()
-sendServerResponse b req sendResponse = void $ sendRequest b req
+sendServerResponse b req sendResponse = void $ sendRequest b (httpData req)
   $ \ httpResponse -> do
     let path = requestPath req
     sendResponse $ ModifiedResponse path httpResponse
     return ResponseReceived
 
+-- | TODO: Fixme: We are a map and no longer a list - state update is broken!
 getChanges :: Client -> STM [(Request, ResourceStatus)]
 getChanges c = do
-      ms <- readTVar $ monitors c
+      ms <- elems <$> readTVar (monitors c)
       newValues <- mapM (fmap refValue . readTVar . monitor) ms
       let oldValues = map oldStatus ms
       let changed = zipWith (/=) oldValues newValues
