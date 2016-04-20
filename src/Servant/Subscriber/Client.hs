@@ -100,9 +100,9 @@ handleUnsubscribe b sub c req = writeResponse c <<= atomically $ do
         writeTVar (monitors c) $ Map.delete path
         return $ Unsubscribed path
 
-monitorChanges :: Backend backend => backend -> Client -> IO ()
-monitorChanges b c = forever $ do
-    changes <- atomically $ getChanges c
+runMonitor :: Backend backend => backend -> Client -> IO ()
+runMonitor b c = forever $ do
+    changes <- atomically $ monitorChanges c
     mapM_ (sendUpdate b (writeResponse c)) changes
 
 sendUpdate :: Backend backend => backend -> (Response -> IO ()) -> (Request, ResourceStatus) -> IO ()
@@ -116,29 +116,40 @@ sendServerResponse b req sendResponse = void $ sendRequest b (httpData req)
     sendResponse $ ModifiedResponse path httpResponse
     return ResponseReceived
 
--- | TODO: Fixme: We are a map and no longer a list - state update is broken!
-getChanges :: Client -> STM [(Request, ResourceStatus)]
-getChanges c = do
+monitorChanges :: Client -> STM [(Request, ResourceStatus)]
+monitorChanges c = do
       ms <- elems <$> readTVar (monitors c)
-      newValues <- mapM (fmap refValue . readTVar . monitor) ms
-      let oldValues = map oldStatus ms
-      let changed = zipWith (/=) oldValues newValues
-      let requests = map request ms
-      let requestValues = zip requests newValues
-      let result = filterByList changed requestValues
-      if null result -- No real changes :-(
+      result <- getChanges ms
+      if null result
         then retry
         else do
-          writeTVar (monitors c)
-              $ filter (stillWatching . oldStatus)
-              . zipWith updateOldStatus newValues $ ms
+          writeTVar (monitors c) . monitorsFromList . updateMonitors $ ms
           return result
-  where
-    filterByList bools vals = map snd . filter fst $ zip bools vals
 
-    updateOldStatus :: ResourceStatus -> StatusMonitor -> StatusMonitor
-    updateOldStatus new s = s { oldStatus = new}
 
-    stillWatching :: ResourceStatus -> Bool
-    stillWatching (Modified _) =  True -- We are watching for any modification
-    stillWatching Deleted = False
+getChanges :: [StatusMonitor] -> STM [(Request, ResourceStatus)]
+getChanges = mapM toChangeReport . filterM monitorChanged
+
+monitorChanged :: StatusMonitor -> STM Bool
+monitorChanged m = (/= oldStatus m) . refValue <$> readTVar (monitor m)
+
+toChangeReport :: StatusMonitor -> STM (Request, ResourceStatus)
+toChangeReport m = (request m,) . currentStatus $ m
+
+currentStatus :: StatusMonitor -> STM ResourceStatus
+currentSTatus = fmap refValue . readTVar . monitor
+
+updateMonitors :: [StatusMonitor] -> STM [StatusMonitor]
+updateMonitors = fmap (filter (oldStatus /= Deleted)) . mapM updateOldStatus
+
+updateOldStatus :: StatusMonitor -> STM StatusMonitor
+updateOldStatus m = do
+  update <- currentStatus m
+  return m { oldStatus = update }
+
+monitorsFromList :: [StatusMonitor] -> ClientMonitors
+monitorsFromList ms = let
+    paths = map (requestPath . request) ms
+    assList = zip paths ms
+  in
+    Map.fromList assList
