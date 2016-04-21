@@ -1,24 +1,17 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
-
 
 module Servant.Subscriber where
 
 import Control.Concurrent.STM.TVar (TVar, readTVar, writeTVar, newTVar, modifyTVar')
-import Control.Concurrent.STM (STM)
-
 import           Data.Aeson
 import           Data.IntMap                   (IntMap)
 import qualified Data.IntMap                   as IntMap
 import           GHC.Generics
 import           Data.Map                      (Map)
 import qualified Data.Map                      as Map
-import Network.URI (URI(..))
-
+import Network.URI (URI(..), pathSegments)
 import Data.Proxy
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
@@ -27,8 +20,6 @@ import           Network.WebSockets.Connection as WS
 import           Servant.Server
 import Servant.Utils.Links (IsElem, HasLink, MkLink, safeLink)
 import Control.Monad
-
-
 import System.Mem.Weak
 import Servant.Subscriber.Subscribable
 import Control.Monad.Trans.Maybe
@@ -37,20 +28,20 @@ import Control.Concurrent.STM
 import Control.Monad.Trans.Class
 import GHC.Conc
 
-type ClientId = Int
+import Servant.Subscriber.Types
+
 type ReferenceCount = Int
 type Revision = Int
-newtype Path = Path Text deriving (Eq, Generic, Ord, Show, ToJSON, FromJSON)
-
 
 type ResourceStatusMap = Map Path (TVar (RefCounted ResourceStatus))
 
-data ResourceStatus = Modified Revision -- |< Watching for 'Modified' implies watching for 'Deleted'
+data ResourceStatus =
+    Modified Revision -- |< Watching for 'Modified' implies watching for 'Deleted'
   | Deleted
   deriving (Eq, Show)
 
 data RefCounted a = RefCounted {
- refCount :: ReferenceCount
+  refCount :: ReferenceCount
 , refValue :: a
 }
 
@@ -81,8 +72,6 @@ data Subscriber = Subscriber {
   You need to provide a proxy to the API too. This is needed to check that the endpoint is valid
   and points to a 'Subscribable' resource.
 
-  In addition the event you want to notify about has to be provided via a proxy.
-
   One piece is still missing - we have to fill out captures, that's what the getLink parameter is
   for: You will typicall provide a lamda there providing needed parameters.
 
@@ -97,7 +86,7 @@ notify :: (IsElem endpoint api, HasLink endpoint
   -> (MkLink endpoint -> URI)
   -> STM ()
 notify subscriber pApi event pEndpoint getLink = do
-  let resource = Path . T.pack . uriPath $ getLink (safeLink pApi pEndpoint)
+  let resource = Path . map T.pack . pathSegments $ getLink (safeLink pApi pEndpoint)
   modifyState event resource subscriber
 
 

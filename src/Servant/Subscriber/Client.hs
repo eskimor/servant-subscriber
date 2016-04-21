@@ -22,9 +22,10 @@ import           Network.WebSockets.Connection   as WS
 import           Servant.Server
 
 import           Servant.Subscriber
+import           Servant.Subscriber.Types
 import           Servant.Subscriber.Backend
 import           Servant.Subscriber.Request
-import           Servant.Subscriber.Response
+import           Servant.Subscriber.Response as Resp
 import           Servant.Subscriber.Subscribable
 
 type ClientMonitors = Map Path StatusMonitor
@@ -68,9 +69,9 @@ subscribeMonitor sub req c = do
 handleRequests :: Backend backend => backend -> Subscriber -> Client -> IO ()
 handleRequests b sub c = forever $ do
     req <- readRequest c
-    case rAction req of
-      Subscribe   -> handleSubscribe b sub c req
-      Unsubscribe -> handleUnsubscribe b sub c req
+    case action of
+      Subscribe req    -> handleSubscribe b sub c req
+      Unsubscribe path -> handleUnsubscribe b sub c path
 
 handleSubscribe :: Backend backend => backend -> Subscriber -> Client -> Request -> IO ()
 handleSubscribe b sub c req = sendRequest b req $ \ httpResponse -> do
@@ -79,22 +80,20 @@ handleSubscribe b sub c req = sendRequest b req $ \ httpResponse -> do
     let isGoodStatus = status >= 200 && status < 300 -- For now we only accept success
     if isGoodStatus
       then
-        writeResponse c <<= atomically $ do
-          let path = requestPath req
+        writeResponse c <<= atomically $
           case Map.lookup path (monitors c) of
-            Just _  -> return $ RequestError path SubscribeAction AlreadySubscribed
+            Just _  -> return $ RequestError (Subscribe Req) AlreadySubscribed
             Nothing -> do
               subscribeMonitor sub req c
-              return $ ModifiedResponse path httpResponse
+              return $ Modified path httpResponse
       else
-        writeResponse c $ RequestError path SubscribeAction (ServerError httpResponse)
+        writeResponse c $ RequestError (Subscribe req) (ServerError httpResponse)
 
-handleUnsubscribe :: Backend backend => backend -> Subscriber -> Client -> Request -> IO ()
-handleUnsubscribe b sub c req = writeResponse c <<= atomically $ do
-    let path = requestPath req
+handleUnsubscribe :: Backend backend => backend -> Subscriber -> Client -> Path -> IO ()
+handleUnsubscribe b sub c path = writeResponse c <<= atomically $ do
     ms <- readTVar (monitors c)
     case Map.lookup path ms of
-      Nothing -> return $ RequestError path Unsubscribe NoSuchSubscription
+      Nothing -> return $ RequestError (Unsubscribe path) NoSuchSubscription
       Just m -> do
         unsubscribeMonitor s m
         writeTVar (monitors c) $ Map.delete path
@@ -106,14 +105,14 @@ runMonitor b c = forever $ do
     mapM_ (sendUpdate b (writeResponse c)) changes
 
 sendUpdate :: Backend backend => backend -> (Response -> IO ()) -> (Request, ResourceStatus) -> IO ()
-sendUpdate b sendResponse (req, Deleted)    = sendResponse $ DeletedResponse (requestPath req)
+sendUpdate b sendResponse (req, Deleted)    = sendResponse $ Deleted (requestPath req)
 sendUpdate b sendResponse (req, Modified _) = sendServerResponse backend req sendResponse
 
 sendServerResponse :: Backend backend => backend -> Request -> (Response -> IO ()) -> IO ()
 sendServerResponse b req sendResponse = void $ sendRequest b (httpData req)
   $ \ httpResponse -> do
     let path = requestPath req
-    sendResponse $ ModifiedResponse path httpResponse
+    sendResponse $ Modified path httpResponse
     return ResponseReceived
 
 monitorChanges :: Client -> STM [(Request, ResourceStatus)]
@@ -131,13 +130,13 @@ getChanges :: [StatusMonitor] -> STM [(Request, ResourceStatus)]
 getChanges = mapM toChangeReport . filterM monitorChanged
 
 monitorChanged :: StatusMonitor -> STM Bool
-monitorChanged m = (/= oldStatus m) . refValue <$> readTVar (monitor m)
+monitorChanged m = (/= oldStatus m) <$> currentStatus m
 
 toChangeReport :: StatusMonitor -> STM (Request, ResourceStatus)
 toChangeReport m = (request m,) . currentStatus $ m
 
 currentStatus :: StatusMonitor -> STM ResourceStatus
-currentSTatus = fmap refValue . readTVar . monitor
+currentStatus = fmap refValue . readTVar . monitor
 
 updateMonitors :: [StatusMonitor] -> STM [StatusMonitor]
 updateMonitors = fmap (filter (oldStatus /= Deleted)) . mapM updateOldStatus

@@ -22,6 +22,9 @@ import           Servant.Server
 import           Data.Bifunctor
 import           Servant.Subscriber
 import           Servant.Subscriber.Subscribable
+import           Servant.Subscriber.Types
+
+
 
 
 {--| We don't use Network.HTTP.Types here, because we need FromJSON instances, which can not
@@ -30,19 +33,16 @@ import           Servant.Subscriber.Subscribable
 type RequestHeader = (Text, Text)
 type RequestHeaders = [RequestHeader]
 
-data SubscribeAction = SubScribe | Unsubscribe deriving (Generic, Show)
-
-instance FromJSON SubscribeAction
-
-
 -- | Any message from the client is a 'Request':
 -- Currently you can only subscribe to 'GET' method endpoints.
-data Request = Request {
-  rAction  :: !SubscribeAction
-, httpData :: !HttpRequest
-} deriving Generic
+data Request =
+    Subscribe !HttpRequest
+  | Unsubscribe !Path
+  deriving Generic
 
 instance FromJSON Request
+instance ToJSON Request
+
 
 data HttpRequest = HttpRequest {
   httpPath    :: !Path
@@ -52,6 +52,8 @@ data HttpRequest = HttpRequest {
 } deriving Generic
 
 instance FromJSON HttpRequest
+instance ToJSON HttpRequest
+
 
 
 newtype RequestBody = RequestBody Value
@@ -70,4 +72,5 @@ toHTTPHeaders :: RequestHeaders -> H.RequestHeaders
 toHTTPHeaders = map toHTTPHeader
 
 requestPath :: Request -> Path
-requestPath = httpPath . httpData
+requestPath (Subscribe req)    = httpPath req
+requestPath (Unsubscribe path) = path

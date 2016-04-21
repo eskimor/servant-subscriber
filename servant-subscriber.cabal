@@ -23,6 +23,7 @@ library
                      , Servant.Subscriber.Request
                      , Servant.Subscriber.Response
                      , Servant.Subscriber.Subscribable
+                     , Servant.Subscriber.Types
   build-depends:       aeson >= 0.11
                      , async
                      , attoparsec

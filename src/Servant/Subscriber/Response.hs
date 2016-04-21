@@ -27,19 +27,22 @@ import           Servant.Server
 
 import           Data.Attoparsec.ByteString      (parseOnly)
 import           Data.Bifunctor
+
 import           Servant.Subscriber
 import qualified Servant.Subscriber.Request      as R
 import           Servant.Subscriber.Subscribable
+import           Servant.Subscriber.Types
+
 
 type ResponseHeader = R.RequestHeader
 type ResponseHeaders = R.RequestHeaders
 
 -- | Any message from the server is a Response.
 data Response =
-    ModifiedResponse !Path !HttpResponse
-  | DeletedResponse !Path
+    Modified !Path !HttpResponse
+  | Deleted !Path
   | Unsubscribed !Path
-  | RequestError !Path !R.SubscribeAction !RequestError
+  | RequestError !R.Request !RequestError
   deriving Generic
 
 instance ToJSON Response
@@ -48,7 +51,7 @@ data HttpResponse = HttpResponse {
   httpStatus  :: !Status
 , httpHeaders :: !ResponseHeaders
 , httpBody    :: ResponseBody
-} deriving (Generic, Show)
+} deriving (Generic)
 
 instance ToJSON HttpResponse
 
@@ -63,12 +66,12 @@ instance ToJSON Status
 data RequestError = RequestParseError
   | ServerError !HttpResponse
   | NoSuchSubscription
-  | AlreadySubscribed deriving (Show, Generic)
+  | AlreadySubscribed deriving Generic
 
 instance ToJSON RequestError
 
 
-data ResponseBody = ResponseBody B.Builder
+data ResponseBody = ResponseBody B.Builder deriving Generic
 
 instance ToJSON ResponseBody where
   toJSON (ResponseBody b) = getValue $ parseOnly value (B.toByteString b)

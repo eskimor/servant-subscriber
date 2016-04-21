@@ -1,3 +1,6 @@
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+
 
 -- | Backend of accessing a wai server:
 module Servant.Subscriber.Backend.Wai where
@@ -23,17 +26,20 @@ import qualified Network.Wai.Internal          as Wai
 import           Network.WebSockets.Connection as WS
 import           Servant.Server
 
-import           Servant.Subscriber.Request
-import           Servant.Subscriber.Response
+import           Servant.Subscriber.Backend
+import           Servant.Subscriber.Request    as Req
+import           Servant.Subscriber.Response   as Res
+import           Servant.Subscriber.Types
+
 
 
 instance Backend Wai.Application where
   requestResource app req sendResponse = do
       waiReq <- toWaiRequest req
-      app waiReq waiWriteResponse
+      app waiReq (waiSendResponse sendResponse)
       return ResponseReceived
 
-waiSendResponse :: (Response -> ResponseReceived) -> Wai.Response -> Wai.ResponseReceived
+waiSendResponse :: (HttpResponse -> IO ResponseReceived) -> Wai.Response -> IO Wai.ResponseReceived
 waiSendResponse sendResponse = fmap fixResponse . sendResponse . fromWaiResponse
   where fixResponse = const Wai.ResponseReceived
 
@@ -41,31 +47,30 @@ toWaiRequest :: HttpRequest -> IO Wai.Request
 toWaiRequest r = do
   waiBody <- mkWaiRequestBody encodedBody
   return Wai.defaultRequest {
-      Wai.pathInfo = H.decodePathSegments . rawPath . httpPath $ r
-    , Wai.rawPathInfo = rawPath r
+      Wai.pathInfo = toSegments . httpPath $ r
+    , Wai.rawPathInfo = B.toByteString . H.encodePathSegments . toSegments . httpPath $ r
     , Wai.queryString = H.queryTextToQuery . httpQuery $ r
     , Wai.rawQueryString = B.toByteString . H.renderQueryText True . httpQuery $ r
-    , Wai.requestHeaders = toHTTPHeaders . httpHeaders $ r
+    , Wai.requestHeaders = toHTTPHeaders . Req.httpHeaders $ r
     , Wai.requestBody = waiBody
     , Wai.requestBodyLength = Wai.KnownLength . fromIntegral . BS.length $ encodedBody
     }
   where
-    rawPath (Path raw) = raw
-    encodedBody = toByteString . fromEncoding . toEncoding . httpBody $ r
+    encodedBody = B.toByteString . fromEncoding . toEncoding . Req.httpBody $ r
 
-mkWaiRequestBody :: ByteString -> IO (IO ByteString)
+mkWaiRequestBody :: BS.ByteString -> IO (IO BS.ByteString)
 mkWaiRequestBody b = do
-  var <- newIORef bs
+  var <- newIORef b
   return $ do
-    readIORef var
+    val <- readIORef var
     writeIORef var BS.empty
+    return val
 
 
-fromWaiResponse :: Wai.Response -> Response
-fromWaiResponse (Wai.ResponseBuilder status headers builder)=
-    sendResponse c Response {
-      httpStatus = fromHTTPStatus status
-    , httpHeaders = fromHTTPHeaders headers
-    , httpBody = ResponseBody builder
+fromWaiResponse :: Wai.Response -> HttpResponse
+fromWaiResponse (Wai.ResponseBuilder status headers builder)= HttpResponse {
+      httpStatus      = fromHTTPStatus status
+    , Res.httpHeaders = fromHTTPHeaders headers
+    , Res.httpBody    = ResponseBody builder
     }
-sendResponse _ = error "I am sorry - this 'Response' type is not yet implemented in servant-subscriber!"
+fromWaiResponse _ = error "I am sorry - this 'Response' type is not yet implemented in servant-subscriber!"
