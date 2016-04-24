@@ -20,7 +20,6 @@ import           Network.WebSockets.Connection   as WS
 import           Servant.Server
 
 import           Data.Bifunctor
-import           Servant.Subscriber
 import           Servant.Subscriber.Subscribable
 import           Servant.Subscriber.Types
 

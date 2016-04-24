@@ -17,23 +17,23 @@ import qualified Data.Text.Encoding              as T
 import           Data.Time
 import           GHC.Generics
 import qualified Network.HTTP.Types              as H
+import qualified Network.WebSockets              as WS
 import           Network.WebSockets.Connection   as WS
 import           Servant.Server
 
 import           Control.Exception
 import           Control.Monad
-import           Servant.Subscriber              as S
 import           Servant.Subscriber.Backend
 import           Servant.Subscriber.Request
 import           Servant.Subscriber.Response     as Resp
 import           Servant.Subscriber.Subscribable
-import           Servant.Subscriber.Types
+import           Servant.Subscriber.Types        as S
 
 type ClientMonitors = Map Path StatusMonitor
 
 data Client = Client {
     monitors      :: !(TVar ClientMonitors)
-  , readRequest   :: !(IO Request)
+  , readRequest   :: !(IO (Maybe Request))
   , writeResponse :: !(Response -> IO ())
   }
 
@@ -43,7 +43,20 @@ data StatusMonitor = StatusMonitor {
 , oldStatus :: !ResourceStatus
 }
 
-run :: Backend backend => backend -> Subscriber -> Client -> IO ()
+fromWebSocket :: WS.Connection -> STM Client
+fromWebSocket c = do
+  ms <- newTVar Map.empty
+  return Client {
+    monitors = ms
+  , readRequest = do
+      msg <- WS.receiveDataMessage c
+      case msg of
+        WS.Text bs  -> return $ decode bs
+        WS.Binary _ -> error "Sorry - binary connections currently unsupported!"
+  , writeResponse = sendDataMessage c . WS.Text . encode
+  }
+
+run :: Backend backend => backend -> Subscriber api -> Client -> IO ()
 run b sub c = do
   let
     work    = race_ (runMonitor b c) (handleRequests b sub c)
@@ -52,7 +65,7 @@ run b sub c = do
       mapM_ (unsubscribeMonitor sub) ms
   finally work cleanup
 
-unsubscribeMonitor :: Subscriber -> StatusMonitor -> STM ()
+unsubscribeMonitor :: Subscriber api -> StatusMonitor -> STM ()
 unsubscribeMonitor sub m =
   let
     path = httpPath . request $ m
@@ -60,21 +73,22 @@ unsubscribeMonitor sub m =
   in
     unsubscribe path mon sub
 
-subscribeMonitor :: Subscriber -> HttpRequest -> Client -> STM ()
+subscribeMonitor :: Subscriber api -> HttpRequest -> Client -> STM ()
 subscribeMonitor sub req c = do
   let path = httpPath req
   tState <- subscribe path sub
   stateVal <- refValue <$> readTVar tState
   modifyTVar' (monitors c) $ Map.insert path (StatusMonitor req tState stateVal)
 
-handleRequests :: Backend backend => backend -> Subscriber -> Client -> IO ()
+handleRequests :: Backend backend => backend -> Subscriber api -> Client -> IO ()
 handleRequests b sub c = forever $ do
     req <- readRequest c
     case req of
-      Subscribe req    -> handleSubscribe b sub c req
-      Unsubscribe path -> handleUnsubscribe b sub c path
+      Nothing                 -> writeResponse c ParseError
+      Just (Subscribe req)    -> handleSubscribe b sub c req
+      Just (Unsubscribe path) -> handleUnsubscribe b sub c path
 
-handleSubscribe :: Backend backend => backend -> Subscriber -> Client -> HttpRequest -> IO ()
+handleSubscribe :: Backend backend => backend -> Subscriber api -> Client -> HttpRequest -> IO ()
 handleSubscribe b sub c req = void $ requestResource b req $ \ httpResponse -> do
     let status = statusCode . httpStatus $ httpResponse
     let path = httpPath req
@@ -92,7 +106,7 @@ handleSubscribe b sub c req = void $ requestResource b req $ \ httpResponse -> d
         writeResponse c $ RequestError (Subscribe req) (ServerError httpResponse)
     return ResponseReceived
 
-handleUnsubscribe :: Backend backend => backend -> Subscriber -> Client -> Path -> IO ()
+handleUnsubscribe :: Backend backend => backend -> Subscriber api -> Client -> Path -> IO ()
 handleUnsubscribe b sub c path = writeResponse c <=< atomically $ do
     ms <- readTVar (monitors c)
     case Map.lookup path ms of

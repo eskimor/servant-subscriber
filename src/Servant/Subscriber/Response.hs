@@ -28,7 +28,6 @@ import           Servant.Server
 import           Data.Attoparsec.ByteString      (parseOnly)
 import           Data.Bifunctor
 
-import           Servant.Subscriber
 import qualified Servant.Subscriber.Request      as R
 import           Servant.Subscriber.Subscribable
 import           Servant.Subscriber.Types
@@ -42,6 +41,7 @@ data Response =
     Modified !Path !HttpResponse
   | Deleted !Path
   | Unsubscribed !Path
+  | ParseError
   | RequestError !R.Request !RequestError
   deriving Generic
 
@@ -63,8 +63,8 @@ data Status = Status {
 instance ToJSON Status
 
 -- | Your subscription did not work out:
-data RequestError = RequestParseError
-  | ServerError !HttpResponse
+data RequestError =
+    ServerError !HttpResponse
   | NoSuchSubscription
   | AlreadySubscribed deriving Generic
 
