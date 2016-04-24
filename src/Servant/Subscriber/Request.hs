@@ -54,8 +54,6 @@ data HttpRequest = HttpRequest {
 instance FromJSON HttpRequest
 instance ToJSON HttpRequest
 
-
-
 newtype RequestBody = RequestBody Value
 
 instance FromJSON RequestBody where
