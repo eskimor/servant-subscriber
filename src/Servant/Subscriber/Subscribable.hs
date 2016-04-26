@@ -43,12 +43,12 @@ type family IsSubscribable' endpoint api :: Constraint
 type family IsSubscribable endpoint api :: Constraint where
     IsSubscribable e (sa :<|> sb)            = Or (IsSubscribable e sa) (IsSubscribable e sb)
     IsSubscribable sa (Subscribable :> sb)
-                                                = IsElem sa sb
+                                             = IsElem sa sb
     IsSubscribable (e :> sa) (e :> sb)       = IsSubscribable sa sb
     IsSubscribable sa (Header sym x :> sb)   = IsSubscribable sa sb
     IsSubscribable sa (ReqBody y x :> sb)    = IsSubscribable sa sb
     IsSubscribable (Capture z y :> sa) (Capture x y :> sb)
-                                                = IsSubscribable sa sb
+                                             = IsSubscribable sa sb
     IsSubscribable sa (QueryParam x y :> sb) = IsSubscribable sa sb
     IsSubscribable sa (QueryParams x y :> sb)= IsSubscribable sa sb
     IsSubscribable sa (QueryFlag x :> sb)    = IsSubscribable sa sb

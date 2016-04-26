@@ -43,6 +43,25 @@ data StatusMonitor = StatusMonitor {
 , oldStatus :: !ResourceStatus
 }
 
+data Snapshot = Snapshot {
+  snapshotCurrent :: ResourceStatus
+, fullMonitor     :: StatusMonitor
+}
+
+snapshotOld :: Snapshot -> ResourceStatus
+snapshotOld = oldStatus . fullMonitor
+
+toSnapshot :: StatusMonitor -> STM Snapshot
+toSnapshot mon = do
+  current <- readTVar $ monitor mon
+  return Snapshot {
+    snapshotCurrent = refValue current
+  , fullMonitor = mon
+  }
+
+snapshotRequest :: Snapshot -> HttpRequest
+snapshotRequest = request . fullMonitor
+
 fromWebSocket :: WS.Connection -> STM Client
 fromWebSocket c = do
   ms <- newTVar Map.empty
@@ -134,34 +153,32 @@ sendServerResponse b req sendResponse = void $ requestResource b req
 
 monitorChanges :: Client -> STM [(HttpRequest, ResourceStatus)]
 monitorChanges c = do
-      ms <- Map.elems <$> readTVar (monitors c)
-      result <- getChanges ms
+      snapshots <- mapM toSnapshot . Map.elems =<< readTVar (monitors c)
+      let result = getChanges snapshots
       if null result
         then retry
         else do
-          writeTVar (monitors c) . monitorsFromList <=< updateMonitors $ ms
+          let newMonitors = monitorsFromList . updateMonitors $ snapshots
+          writeTVar (monitors c) newMonitors
           return result
 
 
-getChanges :: [StatusMonitor] -> STM [(HttpRequest, ResourceStatus)]
-getChanges = mapM toChangeReport <=< filterM monitorChanged
+getChanges :: [Snapshot] -> [(HttpRequest, ResourceStatus)]
+getChanges = map toChangeReport . filter monitorChanged
 
-monitorChanged :: StatusMonitor -> STM Bool
-monitorChanged m = (/= oldStatus m) <$> currentStatus m
+monitorChanged :: Snapshot -> Bool
+monitorChanged m = snapshotCurrent m /= snapshotOld m
 
-toChangeReport :: StatusMonitor -> STM (HttpRequest, ResourceStatus)
-toChangeReport m = (,) (request m) <$> currentStatus m
+toChangeReport :: Snapshot -> (HttpRequest, ResourceStatus)
+toChangeReport m = (snapshotRequest m, snapshotCurrent m)
 
-currentStatus :: StatusMonitor -> STM ResourceStatus
-currentStatus = fmap refValue . readTVar . monitor
+updateMonitors :: [Snapshot] -> [StatusMonitor]
+updateMonitors = map updateOldStatus . filter ((/= S.Deleted) . snapshotCurrent)
 
-updateMonitors :: [StatusMonitor] -> STM [StatusMonitor]
-updateMonitors = fmap (filter (\m -> oldStatus m /= S.Deleted)) . mapM updateOldStatus
-
-updateOldStatus :: StatusMonitor -> STM StatusMonitor
-updateOldStatus m = do
-  update <- currentStatus m
-  return m { oldStatus = update }
+updateOldStatus :: Snapshot -> StatusMonitor
+updateOldStatus m = (fullMonitor m) {
+    oldStatus = snapshotCurrent m
+  }
 
 monitorsFromList :: [StatusMonitor] -> ClientMonitors
 monitorsFromList ms = let
