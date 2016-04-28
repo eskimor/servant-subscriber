@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Servant.Subscriber.Request where
 
 import qualified Blaze.ByteString.Builder        as B
@@ -53,14 +55,7 @@ data HttpRequest = HttpRequest {
 instance FromJSON HttpRequest
 instance ToJSON HttpRequest
 
-newtype RequestBody = RequestBody Value
-
-instance FromJSON RequestBody where
-  parseJSON = return . RequestBody
-
-instance ToJSON RequestBody where
-  toJSON (RequestBody v) = v
-  -- toEncoding (RequestBody v) = Encoding . AesonBuilder.encodeToBuilder
+newtype RequestBody = RequestBody Text deriving (Generic, ToJSON, FromJSON)
 
 toHTTPHeader :: RequestHeader -> H.Header
 toHTTPHeader = bimap (Case.mk . T.encodeUtf8) T.encodeUtf8

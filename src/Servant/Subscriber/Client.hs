@@ -59,6 +59,8 @@ toSnapshot mon = do
   , fullMonitor = mon
   }
 
+
+
 snapshotRequest :: Snapshot -> HttpRequest
 snapshotRequest = request . fullMonitor
 
