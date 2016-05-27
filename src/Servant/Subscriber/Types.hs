@@ -105,7 +105,7 @@ notifyIO :: forall api endpoint. (IsElem endpoint api, HasLink endpoint
   -> Proxy endpoint
   -> (MkLink endpoint -> URI)
   -> IO ()
-notifyIO subscriber event pEndpoint getLink = atomically $ notify subsriber event pEndpoint getlink
+notifyIO subscriber event pEndpoint getLink = atomically $ notify subscriber event pEndpoint getLink
 
 
 -- | Subscribe to a ResourceStatus - it will be created when not present
