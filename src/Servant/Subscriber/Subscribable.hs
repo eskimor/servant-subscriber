@@ -4,21 +4,25 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
 
+
 module Servant.Subscriber.Subscribable where
 
-import           Data.Aeson          (FromJSON, ToJSON)
+import           Control.Lens
+import           Data.Aeson               (FromJSON, ToJSON)
 import           Data.Proxy
-import           GHC.Exts            (Constraint)
+import           GHC.Exts                 (Constraint)
 import           GHC.Generics
 import           GHC.TypeLits
 import           Servant
+import           Servant.Foreign
+import           Servant.Foreign.Internal (_FunctionName)
 import           Servant.Utils.Links
 
 
@@ -41,9 +45,9 @@ type family IsSubscribable' endpoint api :: Constraint
 
 
 type family IsSubscribable endpoint api :: Constraint where
+    IsSubscribable sa (Subscribable :> sb)   = ()
     IsSubscribable e (sa :<|> sb)            = Or (IsSubscribable e sa) (IsSubscribable e sb)
-    IsSubscribable sa (Subscribable :> sb)
-                                             = IsElem sa sb
+    IsSubscribable ((sym :: Symbol) :> sa) (sym :> sb)       = IsSubscribable sa sb
     IsSubscribable (e :> sa) (e :> sb)       = IsSubscribable sa sb
     IsSubscribable sa (Header sym x :> sb)   = IsSubscribable sa sb
     IsSubscribable sa (ReqBody y x :> sb)    = IsSubscribable sa sb
@@ -54,15 +58,24 @@ type family IsSubscribable endpoint api :: Constraint where
     IsSubscribable sa (QueryFlag x :> sb)    = IsSubscribable sa sb
     IsSubscribable e a                       = IsSubscribable' e a
 
+type instance IsElem' e (Subscribable :> s) = IsElem e s
 
 -- | A valid endpoint may only contain Symbols and captures:
 type family IsValidEndpoint endpoint :: Constraint where
   IsValidEndpoint ((sym :: Symbol) :> sub) = IsValidEndpoint sub
   IsValidEndpoint (Capture z y :> sub)     = IsValidEndpoint sub
+  IsValidEndpoint (Verb (method :: k1) (statusCode :: Nat) (contentTypes :: [*]) (a :: *)) = ()
 
 instance HasServer sublayout context => HasServer (Subscribable :> sublayout) context where
   type ServerT (Subscribable :> sublayout) m = ServerT sublayout m
   route _ = route (Proxy :: Proxy sublayout)
+
+
+instance HasForeign lang ftype sublayout => HasForeign lang ftype (Subscribable :> sublayout) where
+  type Foreign ftype (Subscribable :> sublayout) = Foreign ftype sublayout
+  -- foreignFor :: Proxy lang -> Proxy ftype -> Proxy layout -> Req ftype -> Foreign ftype layout
+  foreignFor lang ftype _ req = foreignFor lang ftype (Proxy :: Proxy sublayout) $
+                                          req & reqFuncName . _FunctionName %~ ("" :) -- Prepend empty string for marking as subscribable.
 
 -------------- Copied from Servant.Util.Links (they are not exported) ----------
 

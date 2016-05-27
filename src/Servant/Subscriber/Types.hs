@@ -24,14 +24,15 @@ import           GHC.Conc
 import           GHC.Generics
 import           Network.URI                 (URI (..), pathSegments)
 import Servant.Utils.Links (IsElem, HasLink, MkLink, safeLink)
+import Data.String (IsString, fromString)
+import System.FilePath.Posix (splitPath)
 
 import Servant.Subscriber.Subscribable
 
-
-
-
 newtype Path = Path [Text] deriving (Eq, Generic, Ord, Show, ToJSON, FromJSON)
 
+instance IsString Path where
+  fromString = Path . map T.pack . splitPath
 
 type ReferenceCount = Int
 type Revision = Int
@@ -96,6 +97,15 @@ notify subscriber event pEndpoint getLink = do
   let resource = mkPath $ safeLink (Proxy :: Proxy api) pEndpoint
   modifyState event resource subscriber
 
+-- | Version of notify that lives in 'IO' - for your convenience.
+notifyIO :: forall api endpoint. (IsElem endpoint api, HasLink endpoint
+  , IsValidEndpoint endpoint, IsSubscribable endpoint api)
+  => Subscriber api
+  -> Event
+  -> Proxy endpoint
+  -> (MkLink endpoint -> URI)
+  -> IO ()
+notifyIO subscriber event pEndpoint getLink = atomically $ notify subsriber event pEndpoint getlink
 
 
 -- | Subscribe to a ResourceStatus - it will be created when not present

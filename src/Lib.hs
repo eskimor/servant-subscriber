@@ -1,30 +1,30 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE TypeOperators   #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ConstraintKinds        #-}
-{-# LANGUAGE KindSignatures        #-}
-{-# LANGUAGE TypeFamilies        #-}
-{-# LANGUAGE UndecidableInstances        #-}
-{-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE KindSignatures         #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE RankNTypes             #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE TypeFamilies           #-}
+{-# LANGUAGE TypeOperators          #-}
+{-# LANGUAGE UndecidableInstances   #-}
 module Lib where
 
 
-import GHC.TypeLits
-import Servant.API hiding (IsElem)
-import Servant.Utils.Links hiding (IsElem, Or)
-import Data.Proxy
-import Servant.Server
-import           GHC.Exts              (Constraint)
-import Network.Wai (Application)
-import Control.Monad.Trans.Except (ExceptT)
+import           Control.Monad.Trans.Except (ExceptT)
+import           Data.Proxy
+import           GHC.Exts                   (Constraint)
+import           GHC.TypeLits
+import           Network.Wai                (Application)
+import           Servant.API                hiding (IsElem)
+import           Servant.Server
+import           Servant.Utils.Links        hiding (IsElem, Or)
 
 
 
-       
+
 -- | Select a handler from an API by specifying a type level link.
 -- | The value of this function is the selected handler which can be called.
 callHandler :: forall api endpoint. (GetEndpoint api endpoint (PickLeftRight endpoint api))
