@@ -116,13 +116,13 @@ handleSubscribe b sub c req = void $ requestResource b req $ \ httpResponse -> d
     let isGoodStatus = status >= 200 && status < 300 -- For now we only accept success
     if isGoodStatus
       then
-        writeResponse c <=< atomically $ do
+        mapM_ (writeResponse c) <=< atomically $ do
           ms <- readTVar (monitors c)
           case Map.lookup path ms of
-            Just _  -> return $ RequestError (AlreadySubscribed path)
+            Just _  -> return [RequestError (AlreadySubscribed path)]
             Nothing -> do
               subscribeMonitor sub req c
-              return $ Resp.Modified path httpResponse
+              return [Resp.Subscribed path, Resp.Modified path httpResponse]
       else
         writeResponse c $ RequestError (HttpRequestFailed req httpResponse)
     return ResponseReceived

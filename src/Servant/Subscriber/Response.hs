@@ -38,7 +38,8 @@ type ResponseHeaders = R.RequestHeaders
 
 -- | Any message from the server is a Response.
 data Response =
-    Modified !Path !HttpResponse -- |< Can also be a non 2xx code, ServerError only triggers on the very first response, resulting in a failed subscription.
+    Subscribed !Path -- |< Resource was successfully subscribed
+  | Modified !Path !HttpResponse -- |< Can also be a non 2xx code, ServerError only triggers on the very first response, resulting in a failed subscription.
   | Deleted !Path
   | Unsubscribed !Path
   | ParseError
