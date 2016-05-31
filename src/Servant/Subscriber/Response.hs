@@ -38,11 +38,11 @@ type ResponseHeaders = R.RequestHeaders
 
 -- | Any message from the server is a Response.
 data Response =
-    Modified !Path !HttpResponse
+    Modified !Path !HttpResponse -- |< Can also be a non 2xx code, ServerError only triggers on the very first response, resulting in a failed subscription.
   | Deleted !Path
   | Unsubscribed !Path
   | ParseError
-  | RequestError !R.Request !RequestError
+  | RequestError !RequestError
   deriving Generic
 
 instance ToJSON Response
@@ -62,11 +62,11 @@ data Status = Status {
 
 instance ToJSON Status
 
--- | Your subscription did not work out:
+-- | Your subscription did not work out because:
 data RequestError =
-    ServerError !HttpResponse
-  | NoSuchSubscription
-  | AlreadySubscribed deriving Generic
+    HttpRequestFailed !R.HttpRequest !HttpResponse -- |< The server replied with some none 2xx status code. Thus your subscription failed.
+  | NoSuchSubscription !Path
+  | AlreadySubscribed !Path deriving Generic
 
 instance ToJSON RequestError
 

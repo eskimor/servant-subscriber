@@ -119,19 +119,19 @@ handleSubscribe b sub c req = void $ requestResource b req $ \ httpResponse -> d
         writeResponse c <=< atomically $ do
           ms <- readTVar (monitors c)
           case Map.lookup path ms of
-            Just _  -> return $ RequestError (Subscribe req) AlreadySubscribed
+            Just _  -> return $ RequestError (AlreadySubscribed path)
             Nothing -> do
               subscribeMonitor sub req c
               return $ Resp.Modified path httpResponse
       else
-        writeResponse c $ RequestError (Subscribe req) (ServerError httpResponse)
+        writeResponse c $ RequestError (HttpRequestFailed req httpResponse)
     return ResponseReceived
 
 handleUnsubscribe :: Backend backend => backend -> Subscriber api -> Client -> Path -> IO ()
 handleUnsubscribe b sub c path = writeResponse c <=< atomically $ do
     ms <- readTVar (monitors c)
     case Map.lookup path ms of
-      Nothing -> return $ RequestError (Unsubscribe path) NoSuchSubscription
+      Nothing -> return $ RequestError (NoSuchSubscription path)
       Just m -> do
         unsubscribeMonitor sub m
         modifyTVar (monitors c) $ Map.delete path
