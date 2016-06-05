@@ -1,7 +1,7 @@
 name:                servant-subscriber
 version:             0.1.0.0
 synopsis:            Initial project template from stack
-description:         Please see README.md
+description:         Please see Readme.md
 homepage:            http://github.com/eskimor/servant-subscriber#readme
 license:             BSD3
 license-file:        LICENSE
@@ -10,7 +10,7 @@ maintainer:          robert.klotzner@gmx.at
 copyright:           Copyright: (c) 2016 Robert Klotzner
 category:            Web
 build-type:          Simple
--- extra-source-files:
+extra-source-files:  Readme.md
 cabal-version:       >=1.10
 
 library
