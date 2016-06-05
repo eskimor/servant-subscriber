@@ -24,7 +24,7 @@ library
                      , Servant.Subscriber.Response
                      , Servant.Subscriber.Subscribable
                      , Servant.Subscriber.Types
-  build-depends:       aeson >= 0.11
+  build-depends:       aeson >= 0.11.2  && < 0.12
                      , async
                      , attoparsec
                      , base >= 4.7 && < 5
