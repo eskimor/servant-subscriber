@@ -34,4 +34,4 @@ myBridge :: BridgePart
 myBridge = bridgeResponseBody <|> bridgeRequestBody <|> defaultBridge
 
 main :: IO ()
-main = writePSTypes (buildBridge myBridge) "../purescript-subscriber/src" myTypes
+main = writePSTypes "../purescript-subscriber/src" (buildBridge myBridge) myTypes
