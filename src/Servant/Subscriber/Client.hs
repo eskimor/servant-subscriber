@@ -105,7 +105,7 @@ handleRequests :: Backend backend => backend -> Subscriber api -> Client -> IO (
 handleRequests b sub c = forever $ do
     req <- readRequest c
     case req of
-      Nothing                 -> writeResponse c ParseError
+      Nothing                 -> writeResponse c (RequestError ParseError)
       Just (Subscribe req)    -> handleSubscribe b sub c req
       Just (Unsubscribe path) -> handleUnsubscribe b sub c path
 
