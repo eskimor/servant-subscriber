@@ -47,7 +47,8 @@ toWaiRequest :: HttpRequest -> IO Wai.Request
 toWaiRequest r = do
   waiBody <- mkWaiRequestBody encodedBody
   return Wai.defaultRequest {
-      Wai.pathInfo = toSegments . httpPath $ r
+      Wai.requestMethod = T.encodeUtf8 . httpMethod $ r
+    , Wai.pathInfo = toSegments . httpPath $ r
     , Wai.rawPathInfo = B.toByteString . H.encodePathSegments . toSegments . httpPath $ r
     , Wai.queryString = H.queryTextToQuery . httpQuery $ r
     , Wai.rawQueryString = B.toByteString . H.renderQueryText True . httpQuery $ r

@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Servant.Subscriber.Request where
@@ -46,7 +46,8 @@ instance ToJSON Request
 
 
 data HttpRequest = HttpRequest {
-  httpPath    :: !Path
+  httpMethod  :: !Text
+, httpPath    :: !Path
 , httpHeaders :: RequestHeaders
 , httpQuery   :: H.QueryText
 , httpBody    :: RequestBody
