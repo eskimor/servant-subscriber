@@ -3,6 +3,7 @@ module Servant.Subscriber.Response where
 
 
 import qualified Blaze.ByteString.Builder        as B
+import qualified Blaze.ByteString.Builder.Char8  as B
 import           Control.Concurrent.STM          (STM, atomically, retry)
 import           Control.Concurrent.STM.TVar
 import           Control.Monad                   (void)
@@ -14,6 +15,7 @@ import qualified Data.CaseInsensitive            as Case
 import           Data.IntMap                     (IntMap)
 import qualified Data.IntMap                     as IntMap
 import           Data.Map                        (Map)
+import           Data.Monoid                     ((<>))
 import           Data.Text                       (Text)
 import qualified Data.Text                       as T
 import qualified Data.Text.Encoding              as T
@@ -75,12 +77,12 @@ instance ToJSON RequestError
 data ResponseBody = ResponseBody B.Builder deriving Generic
 
 instance ToJSON ResponseBody where
-  toJSON (ResponseBody b) = getValue $ parseOnly value (B.toByteString b)
+  toJSON (ResponseBody b) = getValue $ parseOnly value (B.toByteString (wrapInString b))
     where
       getValue r = case r of
         Left e -> error e
         Right r -> r
-  toEncoding (ResponseBody b) = unsafeToEncoding b -- A no-op - like it should be :-)
+  toEncoding (ResponseBody b) = unsafeToEncoding . wrapInString $ b
 
 fromHTTPHeader :: H.Header -> ResponseHeader
 fromHTTPHeader = bimap (T.decodeUtf8 . Case.original) T.decodeUtf8
@@ -100,3 +102,6 @@ fromServantError err =  HttpResponse {
 , httpHeaders = fromHTTPHeaders . errHeaders $ err
 , httpBody = ResponseBody . B.fromLazyByteString . errBody $ err
 }
+
+wrapInString :: B.Builder -> B.Builder
+wrapInString x = B.fromChar '"' <> x <>  B.fromChar '"'
