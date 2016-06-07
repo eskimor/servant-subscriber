@@ -8,7 +8,7 @@
 
 module Servant.Subscriber (
   notify
-, mkSubscriber
+, makeSubscriber
 , serveSubscriber
 ) where
 
@@ -17,6 +17,7 @@ import           Data.Aeson
 import           GHC.Generics
 import           Data.Map                      (Map)
 import qualified Data.Map                      as Map
+import Debug.Trace (trace)
 import Network.URI (URI(..), pathSegments)
 import Data.Proxy
 import           Data.Text                     (Text)
@@ -34,13 +35,14 @@ import Control.Monad.Trans.Class
 import GHC.Conc
 import Network.Wai
 import Network.Wai.Handler.WebSockets
+import Data.Monoid ((<>))
 
 import Servant.Subscriber.Types
 import qualified Servant.Subscriber.Client as Client
 import Servant.Subscriber.Backend.Wai
 
-mkSubscriber :: Path -> STM (Subscriber api)
-mkSubscriber entryPoint = do
+makeSubscriber :: Path -> STM (Subscriber api)
+makeSubscriber entryPoint = do
   state <- newTVar Map.empty
   return $ Subscriber state entryPoint
 
@@ -49,6 +51,8 @@ serveSubscriber subscriber server req sendResponse = do
     let app = serve (Proxy :: Proxy api) server
     let opts = defaultConnectionOptions
     let handleWSConnection = Client.run app subscriber <=< atomically . Client.fromWebSocket <=< acceptRequest
+    putStrLn $ "Connection attempted with: " <> show (pathInfo req)
+    putStrLn $ "WS endpoint is: " <> show (entryPoint subscriber)
     if Path (pathInfo req) == entryPoint subscriber
       then websocketsOr opts handleWSConnection app req sendResponse
       else app req sendResponse
