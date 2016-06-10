@@ -4,6 +4,7 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE RankNTypes #-}
 
 
 module Servant.Subscriber (
@@ -41,18 +42,20 @@ import Servant.Subscriber.Types
 import qualified Servant.Subscriber.Client as Client
 import Servant.Subscriber.Backend.Wai
 
-makeSubscriber :: Path -> STM (Subscriber api)
-makeSubscriber entryPoint = do
+makeSubscriber :: Path -> LogRunner -> STM (Subscriber api)
+makeSubscriber entryPoint logRunner = do
   state <- newTVar Map.empty
-  return $ Subscriber state entryPoint
+  return $ Subscriber state entryPoint logRunner
 
 serveSubscriber :: forall api. (HasServer api '[]) => Subscriber api -> Server api -> Application
 serveSubscriber subscriber server req sendResponse = do
     let app = serve (Proxy :: Proxy api) server
     let opts = defaultConnectionOptions
-    let handleWSConnection = Client.run app subscriber <=< atomically . Client.fromWebSocket <=< acceptRequest
-    putStrLn $ "Connection attempted with: " <> show (pathInfo req)
-    putStrLn $ "WS endpoint is: " <> show (entryPoint subscriber)
+    let runLog = runLogging subscriber
+    let handleWSConnection pending = do
+          connection <- acceptRequest pending
+          forkPingThread connection 25
+          runLog . Client.run app subscriber <=< atomically . Client.fromWebSocket $ connection
     if Path (pathInfo req) == entryPoint subscriber
       then websocketsOr opts handleWSConnection app req sendResponse
       else app req sendResponse

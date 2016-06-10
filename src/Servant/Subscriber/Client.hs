@@ -1,9 +1,17 @@
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Servant.Subscriber.Client where
 
 import qualified Blaze.ByteString.Builder        as B
 import           Control.Concurrent.Async
 import           Control.Concurrent.STM          (STM, atomically, retry)
 import           Control.Concurrent.STM.TVar
+import           Control.Monad.Logger            (MonadLogger, logDebug,
+                                                  logError, logInfo,
+                                                  monadLoggerLog)
+import Control.Exception.Lifted (finally, try)
+import Control.Exception (displayException, SomeException)
+import Control.Monad.Trans.Control (MonadBaseControl)
 import           Data.Aeson
 import           Data.Bifunctor
 import qualified Data.ByteString                 as BS
@@ -13,6 +21,7 @@ import qualified Data.IntMap                     as IntMap
 import           Data.Map                        (Map)
 import qualified Data.Map.Strict                 as Map
 import           Data.Text                       (Text)
+import qualified Data.Text                       as T
 import qualified Data.Text.Encoding              as T
 import           Data.Time
 import           GHC.Generics
@@ -21,8 +30,8 @@ import qualified Network.WebSockets              as WS
 import           Network.WebSockets.Connection   as WS
 import           Servant.Server
 
-import           Control.Exception
 import           Control.Monad
+import Control.Monad.IO.Class
 import           Servant.Subscriber.Backend
 import           Servant.Subscriber.Request
 import           Servant.Subscriber.Response     as Resp
@@ -77,14 +86,17 @@ fromWebSocket c = do
   , writeResponse = sendDataMessage c . WS.Text . encode
   }
 
-run :: Backend backend => backend -> Subscriber api -> Client -> IO ()
+run :: (MonadLogger m, MonadBaseControl IO m, MonadIO m, Backend backend) => backend -> Subscriber api -> Client -> m ()
 run b sub c = do
   let
-    work    = race_ (runMonitor b c) (handleRequests b sub c)
-    cleanup = atomically $ do
+    work    = liftIO $ race_ (runMonitor b c) (handleRequests b sub c)
+    cleanup = liftIO . atomically $ do
       ms <- readTVar (monitors c)
       mapM_ (unsubscribeMonitor sub) ms
-  finally work cleanup
+  r <- try $ finally work cleanup
+  case r of
+    Left e -> $logDebug $ T.pack $ displayException (e :: SomeException)
+    Right _ -> return ()
 
 unsubscribeMonitor :: Subscriber api -> StatusMonitor -> STM ()
 unsubscribeMonitor sub m =
