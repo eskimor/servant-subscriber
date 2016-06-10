@@ -122,7 +122,9 @@ subscribe p s = do
            state <- newTVar $ RefCounted 1 (Modified 0)
            writeTVar (subState s) $ Map.insert p state states
            return state
-        Just state -> return state
+        Just state -> do
+           modifyTVar' state $ \s -> s { refCount = refCount s + 1}
+           return state
 
 -- | Unget a previously got ResourceState - make sure you match every call to subscribe with a call to unsubscribe!
 unsubscribe :: Path -> TVar (RefCounted ResourceStatus) -> Subscriber api -> STM ()
