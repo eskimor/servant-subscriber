@@ -9,3 +9,7 @@ extra-deps:
 flags: {}
 
 extra-package-dbs: []
+
+nix:
+   shell-file: stack.nix
+#   packages: [zlib gcc]
