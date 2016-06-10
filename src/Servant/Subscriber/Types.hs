@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes #-}
 
 
 module Servant.Subscriber.Types where
@@ -10,6 +11,7 @@ import           Control.Concurrent.STM.TVar (TVar, modifyTVar', newTVar,
                                               readTVar, writeTVar)
 import           Control.Monad
 import           Control.Monad.IO.Class
+import Control.Monad.Logger
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Maybe
 import           Data.Aeson
@@ -36,7 +38,6 @@ instance IsString Path where
 
 type ReferenceCount = Int
 type Revision = Int
-
 type ResourceStatusMap = Map Path (TVar (RefCounted ResourceStatus))
 
 data ResourceStatus =
@@ -51,6 +52,8 @@ data RefCounted a = RefCounted {
 
 instance Functor RefCounted where
   fmap f (RefCounted c v) = RefCounted c (f v)
+
+type LogRunner = forall m a. MonadIO m => LoggingT m a -> m a
 
 data Subscriber api = Subscriber {
   {--
@@ -68,6 +71,7 @@ data Subscriber api = Subscriber {
   subState   :: !(TVar ResourceStatusMap)
 -- On which path do we wait for WebSocket connections?
 , entryPoint :: !Path
+, runLogging :: LogRunner
 }
 
 data Event = DeleteEvent | ModifyEvent deriving (Eq)

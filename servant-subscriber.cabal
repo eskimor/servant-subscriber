@@ -36,6 +36,9 @@ library
                      , filepath
                      , http-types
                      , lens
+                     , lifted-base
+                     , monad-control
+                     , monad-logger
                      , network-uri
                      , servant
                      , servant-foreign
