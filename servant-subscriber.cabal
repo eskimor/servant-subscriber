@@ -6,12 +6,14 @@ homepage:            http://github.com/eskimor/servant-subscriber#readme
 license:             BSD3
 license-file:        LICENSE
 author:              Robert Klotzner
-maintainer:          robert.klotzner@gmx.at
+maintainer:          robert Dot klotzner A T gmx Dot at
 copyright:           Copyright: (c) 2016 Robert Klotzner
 category:            Web
 build-type:          Simple
 extra-source-files:  Readme.md
 cabal-version:       >=1.10
+
+extra-source-files:  Readme.md
 
 library
   hs-source-dirs:      src
