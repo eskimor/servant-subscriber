@@ -5,7 +5,7 @@ Servant Subscriber
 
 Servant-subscriber enables you clients to subscribe to resources in your servant-api (an API endpoint).
 Servant-subscriber will then notify the client via a WebSocket connection whenever the resource
-changes, thus the client can easily stay up to date all the time.
+changes, thus the client can easily stay up to date with a resource.
 
 ## Status
 

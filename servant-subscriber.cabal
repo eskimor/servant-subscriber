@@ -1,6 +1,6 @@
 name:                servant-subscriber
-version:             0.1.0.1
-synopsis:            Initial project template from stack
+version:             0.1.0.2
+synopsis:            When REST is not enough ...
 description:         Please see Readme.md
 homepage:            http://github.com/eskimor/servant-subscriber#readme
 license:             BSD3
@@ -17,7 +17,7 @@ extra-source-files:  Readme.md
 
 library
   hs-source-dirs:      src
-  exposed-modules:     
+  exposed-modules:
                        Servant.Subscriber
                      , Servant.Subscriber.Backend
                      , Servant.Subscriber.Backend.Wai
