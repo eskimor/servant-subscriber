@@ -1,5 +1,5 @@
 name:                servant-subscriber
-version:             0.1.0.0
+version:             0.1.0.1
 synopsis:            Initial project template from stack
 description:         Please see Readme.md
 homepage:            http://github.com/eskimor/servant-subscriber#readme
@@ -17,8 +17,8 @@ extra-source-files:  Readme.md
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Lib
-                     , Servant.Subscriber
+  exposed-modules:     
+                       Servant.Subscriber
                      , Servant.Subscriber.Backend
                      , Servant.Subscriber.Backend.Wai
                      , Servant.Subscriber.Client
