@@ -7,29 +7,22 @@
 module Servant.Subscriber.Types where
 
 import           Control.Concurrent.STM
-import           Control.Concurrent.STM.TVar (TVar, modifyTVar', newTVar,
-                                              readTVar, writeTVar)
 import           Control.Monad
 import           Control.Monad.IO.Class
-import Control.Monad.Logger
-import           Control.Monad.Trans.Class
-import           Control.Monad.Trans.Maybe
+import           Control.Monad.Logger
 import           Data.Aeson
-import           Data.Aeson.Types
-import           Data.Map                    (Map)
-import qualified Data.Map                    as Map
+import           Data.Map (Map)
+import qualified Data.Map as Map
 import           Data.Proxy
-import           Data.Text                   (Text)
-import qualified Data.Text                   as T
-import           Data.Time
-import           GHC.Conc
+import           Data.String (IsString, fromString)
+import           Data.Text (Text)
+import qualified Data.Text as T
 import           GHC.Generics
-import           Network.URI                 (URI (..), pathSegments)
-import Servant.Utils.Links (IsElem, HasLink, MkLink, safeLink)
-import Data.String (IsString, fromString)
-import System.FilePath.Posix (splitPath)
+import           Network.URI (URI (..), pathSegments)
+import           Servant.Utils.Links (IsElem, HasLink, MkLink, safeLink)
+import           System.FilePath.Posix (splitPath)
 
-import Servant.Subscriber.Subscribable
+import           Servant.Subscriber.Subscribable
 
 newtype Path = Path [Text] deriving (Eq, Generic, Ord, Show, ToJSON, FromJSON)
 

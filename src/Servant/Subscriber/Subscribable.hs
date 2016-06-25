@@ -12,18 +12,22 @@
 
 
 
-module Servant.Subscriber.Subscribable where
+module Servant.Subscriber.Subscribable (
+    Subscribable
+  , IsSubscribable
+  , IsSubscribable'
+  , IsElem
+  , IsValidEndpoint
+  ) where
 
 import           Control.Lens
-import           Data.Aeson               (FromJSON, ToJSON)
 import           Data.Proxy
 import           GHC.Exts                 (Constraint)
-import           GHC.Generics
 import           GHC.TypeLits
+
 import           Servant
 import           Servant.Foreign
 import           Servant.Foreign.Internal (_FunctionName)
-import           Servant.Utils.Links
 
 
 data Subscribable

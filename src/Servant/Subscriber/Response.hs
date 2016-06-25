@@ -4,34 +4,21 @@ module Servant.Subscriber.Response where
 
 import qualified Blaze.ByteString.Builder        as B
 import qualified Blaze.ByteString.Builder.Char8  as B
-import           Control.Concurrent.STM          (STM, atomically, retry)
-import           Control.Concurrent.STM.TVar
-import           Control.Monad                   (void)
 import           Data.Aeson
 import           Data.Aeson.Parser               (value)
 import           Data.Aeson.Types                (unsafeToEncoding)
-import qualified Data.ByteString                 as BS
+import           Data.Attoparsec.ByteString      (parseOnly)
+import           Data.Bifunctor
 import qualified Data.CaseInsensitive            as Case
-import           Data.IntMap                     (IntMap)
-import qualified Data.IntMap                     as IntMap
-import           Data.Map                        (Map)
 import           Data.Monoid                     ((<>))
 import           Data.Text                       (Text)
 import qualified Data.Text                       as T
 import qualified Data.Text.Encoding              as T
-import           Data.Time
 import           GHC.Generics
 import qualified Network.HTTP.Types              as H
-import qualified Network.Wai                     as Wai
-import qualified Network.Wai.Internal            as Wai
-import           Network.WebSockets.Connection   as WS
 import           Servant.Server
 
-import           Data.Attoparsec.ByteString      (parseOnly)
-import           Data.Bifunctor
-
 import qualified Servant.Subscriber.Request      as R
-import           Servant.Subscriber.Subscribable
 import           Servant.Subscriber.Types
 
 

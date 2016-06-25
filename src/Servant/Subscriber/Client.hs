@@ -2,41 +2,27 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Servant.Subscriber.Client where
 
-import qualified Blaze.ByteString.Builder        as B
-import           Control.Concurrent.Async
-import           Control.Concurrent.STM          (STM, atomically, retry)
-import           Control.Concurrent.STM.TVar
-import           Control.Monad.Logger            (MonadLogger, logDebug,
-                                                  logError, logInfo,
-                                                  monadLoggerLog)
-import Control.Exception.Lifted (finally, try)
-import Control.Exception (displayException, SomeException)
-import Control.Monad.Trans.Control (MonadBaseControl)
-import           Data.Aeson
-import           Data.Bifunctor
-import qualified Data.ByteString                 as BS
-import qualified Data.CaseInsensitive            as Case
-import           Data.IntMap                     (IntMap)
-import qualified Data.IntMap                     as IntMap
-import           Data.Map                        (Map)
-import qualified Data.Map.Strict                 as Map
-import           Data.Text                       (Text)
-import qualified Data.Text                       as T
-import qualified Data.Text.Encoding              as T
-import           Data.Time
-import           GHC.Generics
-import qualified Network.HTTP.Types              as H
-import qualified Network.WebSockets              as WS
-import           Network.WebSockets.Connection   as WS
-import           Servant.Server
 
+import           Control.Concurrent.Async
+import           Control.Concurrent.STM (STM, atomically, retry)
+import           Control.Concurrent.STM.TVar
+import           Control.Exception (displayException, SomeException)
+import           Control.Exception.Lifted (finally, try)
 import           Control.Monad
-import Control.Monad.IO.Class
+import           Control.Monad.IO.Class
+import           Control.Monad.Logger (MonadLogger, logDebug, logError, logInfo, monadLoggerLog)
+import           Control.Monad.Trans.Control (MonadBaseControl)
+import           Data.Aeson
+import           Data.Map (Map)
+import qualified Data.Map.Strict as Map
+import qualified Data.Text as T
+import qualified Network.WebSockets as WS
+import           Network.WebSockets.Connection as WS
+
 import           Servant.Subscriber.Backend
 import           Servant.Subscriber.Request
-import           Servant.Subscriber.Response     as Resp
-import           Servant.Subscriber.Subscribable
-import           Servant.Subscriber.Types        as S
+import           Servant.Subscriber.Response as Resp
+import           Servant.Subscriber.Types as S
 
 type ClientMonitors = Map Path StatusMonitor
 

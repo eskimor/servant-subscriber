@@ -12,36 +12,34 @@ module Servant.Subscriber (
 , makeSubscriber
 , serveSubscriber
 , Subscriber
+, Event
+, IsElem
+, HasLink
+, IsValidEndpoint
+, IsSubscribable
+, Proxy
+, MkLink
+, URI
+, STM
 ) where
 
-import Control.Concurrent.STM.TVar (TVar, readTVar, writeTVar, newTVar, modifyTVar')
-import           Data.Aeson
-import           GHC.Generics
-import           Data.Map                      (Map)
-import qualified Data.Map                      as Map
-import Debug.Trace (trace)
-import Network.URI (URI(..), pathSegments)
-import Data.Proxy
-import           Data.Text                     (Text)
-import qualified Data.Text                     as T
-import           Data.Time
+
+import           Control.Concurrent.STM
+import           Control.Monad
+import qualified Data.Map as Map
+import           Data.Proxy
+import           Network.URI (URI(..), pathSegments)
+import           Network.Wai
+import           Network.Wai.Handler.WebSockets
 import           Network.WebSockets.Connection as WS
 import           Servant.Server
-import Servant.Utils.Links (IsElem, HasLink, MkLink, safeLink)
-import Control.Monad
-import Servant.Subscriber.Subscribable
-import Control.Monad.Trans.Maybe
-import Control.Monad.IO.Class
-import Control.Concurrent.STM
-import Control.Monad.Trans.Class
-import GHC.Conc
-import Network.Wai
-import Network.Wai.Handler.WebSockets
-import Data.Monoid ((<>))
+import           Servant.Subscriber.Subscribable
+import           Servant.Utils.Links (IsElem, HasLink, MkLink, safeLink)
 
-import Servant.Subscriber.Types
+import           Servant.Subscriber.Backend.Wai ()
 import qualified Servant.Subscriber.Client as Client
-import Servant.Subscriber.Backend.Wai
+import           Servant.Subscriber.Types
+
 
 makeSubscriber :: Path -> LogRunner -> STM (Subscriber api)
 makeSubscriber entryPoint logRunner = do

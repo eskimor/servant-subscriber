@@ -5,30 +5,18 @@
 -- | Backend of accessing a wai server:
 module Servant.Subscriber.Backend.Wai where
 
-import qualified Blaze.ByteString.Builder      as B
-import           Control.Concurrent.STM        (STM, atomically, retry)
-import           Control.Concurrent.STM.TVar
-import           Control.Monad                 (void)
+import qualified Blaze.ByteString.Builder as B
 import           Data.Aeson
-import qualified Data.ByteString               as BS
-import qualified Data.CaseInsensitive          as Case
-import           Data.IntMap                   (IntMap)
-import qualified Data.IntMap                   as IntMap
+import qualified Data.ByteString as BS
 import           Data.IORef
-import           Data.Map                      (Map)
-import           Data.Text                     (Text)
-import qualified Data.Text.Encoding            as T
-import           Data.Time
-import           GHC.Generics
-import qualified Network.HTTP.Types            as H
-import qualified Network.Wai                   as Wai
-import qualified Network.Wai.Internal          as Wai
-import           Network.WebSockets.Connection as WS
-import           Servant.Server
+import qualified Data.Text.Encoding as T
+import qualified Network.HTTP.Types as H
+import qualified Network.Wai as Wai
+import qualified Network.Wai.Internal as Wai
 
 import           Servant.Subscriber.Backend
-import           Servant.Subscriber.Request    as Req
-import           Servant.Subscriber.Response   as Res
+import           Servant.Subscriber.Request as Req
+import           Servant.Subscriber.Response as Res
 import           Servant.Subscriber.Types
 
 
