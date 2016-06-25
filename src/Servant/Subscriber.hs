@@ -11,6 +11,7 @@ module Servant.Subscriber (
   notify
 , makeSubscriber
 , serveSubscriber
+, Subscriber
 ) where
 
 import Control.Concurrent.STM.TVar (TVar, readTVar, writeTVar, newTVar, modifyTVar')
