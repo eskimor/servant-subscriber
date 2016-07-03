@@ -87,6 +87,10 @@ instance HasForeign lang ftype sublayout => HasForeign lang ftype (Subscribable 
   foreignFor lang ftype _ req = foreignFor lang ftype (Proxy :: Proxy sublayout) $
                                           req & reqFuncName . _FunctionName %~ ("" :) -- Prepend empty string for marking as subscribable.
 
+instance HasLink sub => HasLink (Subscribable :> sub) where
+    type MkLink (Subscribable :> sub) = MkLink sub
+    toLink _ = toLink (Proxy :: Proxy sub)
+
 -------------- Copied from Servant.Util.Links (they are not exported) ----------
 
 -- | If both a or b produce an empty constraint, produce an empty constraint.
