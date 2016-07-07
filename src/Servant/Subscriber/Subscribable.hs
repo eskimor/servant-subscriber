@@ -63,11 +63,7 @@ type family IsSubscribable endpoint api :: Constraint where
     IsSubscribable e a                       = IsSubscribable' e a
 
 
-type family MyIsElem endpoint api :: Constraint where
-    MyIsElem (Subscribable :> e) s = IsElem e s
-    MyIsElem e (Subscribable :> s) = IsElem e s
-
-type instance IsElem' e s = MyIsElem e s
+type instance IsElem' (Subscribable :> e) (Subscribable :> s) = IsElem e s
 
 -- | A valid endpoint may only contain Symbols and captures & for convenince Subscribable:
 type family IsValidEndpoint endpoint :: Constraint where
