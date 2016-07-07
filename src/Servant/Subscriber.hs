@@ -12,7 +12,7 @@ module Servant.Subscriber (
 , makeSubscriber
 , serveSubscriber
 , Subscriber
-, Event
+, Event(..)
 , IsElem
 , HasLink
 , IsValidEndpoint
