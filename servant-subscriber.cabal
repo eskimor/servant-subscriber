@@ -1,5 +1,5 @@
 name:                servant-subscriber
-version:             0.2.0.0
+version:             0.2.0.1
 synopsis:            When REST is not enough ...
 description:         Please see Readme.md
 homepage:            http://github.com/eskimor/servant-subscriber#readme
