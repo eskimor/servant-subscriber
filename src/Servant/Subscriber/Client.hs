@@ -10,7 +10,7 @@ import           Control.Exception (displayException, SomeException)
 import           Control.Exception.Lifted (finally, try)
 import           Control.Monad
 import           Control.Monad.IO.Class
-import           Control.Monad.Logger (MonadLogger, logDebug, logError, logInfo, monadLoggerLog)
+import           Control.Monad.Logger (MonadLogger, logDebug)
 import           Control.Monad.Trans.Control (MonadBaseControl)
 import           Data.Aeson
 import           Data.Map (Map)
@@ -117,9 +117,9 @@ handleRequests :: Backend backend => backend -> Client api -> IO ()
 handleRequests b c = forever $ do
     req <- readRequest c
     case req of
-      Nothing                 -> writeResponse c ParseError
-      Just (Subscribe req)    -> handleSubscribe b c req
-      Just (Unsubscribe path) -> handleUnsubscribe b c path
+      Nothing                  -> writeResponse c ParseError
+      Just (Subscribe httpReq) -> handleSubscribe b c httpReq
+      Just (Unsubscribe path)  -> handleUnsubscribe c path
 
 handleSubscribe :: Backend backend => backend -> Client api -> HttpRequest -> IO ()
 handleSubscribe b c req = getServerResponse b req $ \ response -> do
@@ -130,8 +130,8 @@ handleSubscribe b c req = getServerResponse b req $ \ response -> do
       return [ Resp.Subscribed path, response ]
     _ -> return [ response ]
 
-handleUnsubscribe :: Backend backend => backend -> Client api -> Path -> IO ()
-handleUnsubscribe b c path = do
+handleUnsubscribe :: Client api -> Path -> IO ()
+handleUnsubscribe c path = do
   atomically $ removeMonitor c path
   writeResponse c $ Unsubscribed path
 
