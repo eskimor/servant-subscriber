@@ -53,8 +53,8 @@ serveSubscriber subscriber server req sendResponse = do
     let runLog = runLogging subscriber
     let handleWSConnection pending = do
           connection <- acceptRequest pending
-          forkPingThread connection 25
-          runLog . Client.run app subscriber <=< atomically . Client.fromWebSocket $ connection
+          forkPingThread connection 28
+          runLog . Client.run app <=< atomically . Client.fromWebSocket subscriber $ connection
     if Path (pathInfo req) == entryPoint subscriber
       then websocketsOr opts handleWSConnection app req sendResponse
       else app req sendResponse

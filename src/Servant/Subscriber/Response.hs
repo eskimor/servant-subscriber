@@ -28,10 +28,11 @@ type ResponseHeaders = R.RequestHeaders
 -- | Any message from the server is a Response.
 data Response =
     Subscribed !Path -- |< Resource was successfully subscribed
-  | Modified !Path !HttpResponse -- |< Can also be a non 2xx code, ServerError only triggers on the very first response, resulting in a failed subscription.
+  | Modified !Path !ResponseBody -- |< If the full response is needed an additional FullSubscribe command with an appropriate additional response type will need to be added. 
   | Deleted !Path
   | Unsubscribed !Path
-  | RequestError !RequestError
+  | HttpRequestFailed !R.HttpRequest !HttpResponse -- |< The server replied with some none 2xx status code. Thus your subscription failed.
+  | ParseError -- |< Your request could not be parsed.
   deriving Generic
 
 instance ToJSON Response
@@ -50,16 +51,6 @@ data Status = Status {
 } deriving Generic
 
 instance ToJSON Status
-
--- | Your subscription did not work out because:
-data RequestError =
-    ParseError
-  | HttpRequestFailed !R.HttpRequest !HttpResponse -- |< The server replied with some none 2xx status code. Thus your subscription failed.
-  | NoSuchSubscription !Path
-  | AlreadySubscribed !Path deriving Generic
-
-instance ToJSON RequestError
-
 
 data ResponseBody = ResponseBody B.Builder deriving Generic
 

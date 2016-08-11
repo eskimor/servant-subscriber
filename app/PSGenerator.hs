@@ -14,7 +14,6 @@ myTypes = [
      , mkSumType (Proxy :: Proxy Response)
      , mkSumType (Proxy :: Proxy HttpResponse)
      , mkSumType (Proxy :: Proxy Status)
-     , mkSumType (Proxy :: Proxy RequestError)
      , mkSumType (Proxy :: Proxy Path)
      ]
 

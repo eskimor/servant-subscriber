@@ -26,8 +26,9 @@ import           Servant.Subscriber.Types as S
 
 type ClientMonitors = Map Path StatusMonitor
 
-data Client = Client {
-    monitors      :: !(TVar ClientMonitors)
+data Client api = Client {
+    subscriber    :: !(Subscriber api)
+  , monitors      :: !(TVar ClientMonitors)
   , readRequest   :: !(IO (Maybe Request))
   , writeResponse :: !(Response -> IO ())
   }
@@ -54,16 +55,15 @@ toSnapshot mon = do
   , fullMonitor = mon
   }
 
-
-
 snapshotRequest :: Snapshot -> HttpRequest
 snapshotRequest = request . fullMonitor
 
-fromWebSocket :: WS.Connection -> STM Client
-fromWebSocket c = do
+fromWebSocket :: Subscriber api -> WS.Connection -> STM (Client api)
+fromWebSocket sub c = do
   ms <- newTVar Map.empty
   return Client {
-    monitors = ms
+    subscriber = sub
+  , monitors = ms
   , readRequest = do
       msg <- WS.receiveDataMessage c
       case msg of
@@ -72,10 +72,12 @@ fromWebSocket c = do
   , writeResponse = sendDataMessage c . WS.Text . encode
   }
 
-run :: (MonadLogger m, MonadBaseControl IO m, MonadIO m, Backend backend) => backend -> Subscriber api -> Client -> m ()
-run b sub c = do
+run :: (MonadLogger m, MonadBaseControl IO m, MonadIO m, Backend backend)
+       => backend -> Client api -> m ()
+run b c = do
   let
-    work    = liftIO $ race_ (runMonitor b c) (handleRequests b sub c)
+    sub     = subscriber c
+    work    = liftIO $ race_ (runMonitor b c) (handleRequests b c)
     cleanup = liftIO . atomically $ do
       ms <- readTVar (monitors c)
       mapM_ (unsubscribeMonitor sub) ms
@@ -84,6 +86,24 @@ run b sub c = do
     Left e -> $logDebug $ T.pack $ displayException (e :: SomeException)
     Right _ -> return ()
 
+addMonitor :: HttpRequest -> Client api -> STM ()
+addMonitor req c = do
+  let path = httpPath req
+  let sub  = subscriber c
+  tState <- subscribe path sub
+  stateVal <- refValue <$> readTVar tState
+  modifyTVar' (monitors c) $ Map.insert path (StatusMonitor req tState stateVal)
+
+-- | Unsubscribe from subscriber and also delete our monitor
+removeMonitor :: Client api -> Path -> STM ()
+removeMonitor c path = do
+    let sub = subscriber c
+    ms <- readTVar (monitors c)
+    forM_ ( Map.lookup path ms ) $ \m -> do
+        unsubscribeMonitor sub m
+        modifyTVar (monitors c) $ Map.delete path
+
+-- | Does not remove the monitor - use removeMonitor if you want this!
 unsubscribeMonitor :: Subscriber api -> StatusMonitor -> STM ()
 unsubscribeMonitor sub m =
   let
@@ -92,75 +112,75 @@ unsubscribeMonitor sub m =
   in
     unsubscribe path mon sub
 
-subscribeMonitor :: Subscriber api -> HttpRequest -> Client -> STM ()
-subscribeMonitor sub req c = do
-  let path = httpPath req
-  tState <- subscribe path sub
-  stateVal <- refValue <$> readTVar tState
-  modifyTVar' (monitors c) $ Map.insert path (StatusMonitor req tState stateVal)
 
-handleRequests :: Backend backend => backend -> Subscriber api -> Client -> IO ()
-handleRequests b sub c = forever $ do
+handleRequests :: Backend backend => backend -> Client api -> IO ()
+handleRequests b c = forever $ do
     req <- readRequest c
     case req of
-      Nothing                 -> writeResponse c (RequestError ParseError)
-      Just (Subscribe req)    -> handleSubscribe b sub c req
-      Just (Unsubscribe path) -> handleUnsubscribe b sub c path
+      Nothing                 -> writeResponse c ParseError
+      Just (Subscribe req)    -> handleSubscribe b c req
+      Just (Unsubscribe path) -> handleUnsubscribe b c path
 
-handleSubscribe :: Backend backend => backend -> Subscriber api -> Client -> HttpRequest -> IO ()
-handleSubscribe b sub c req = void $ requestResource b req $ \ httpResponse -> do
-    let status = statusCode . httpStatus $ httpResponse
-    let path = httpPath req
-    let isGoodStatus = status >= 200 && status < 300 -- For now we only accept success
-    if isGoodStatus
-      then
-        mapM_ (writeResponse c) <=< atomically $ do
-          ms <- readTVar (monitors c)
-          case Map.lookup path ms of
-            Just _  -> return [RequestError (AlreadySubscribed path)]
-            Nothing -> do
-              subscribeMonitor sub req c
-              return [Resp.Subscribed path, Resp.Modified path httpResponse]
-      else
-        writeResponse c $ RequestError (HttpRequestFailed req httpResponse)
-    return ResponseReceived
+handleSubscribe :: Backend backend => backend -> Client api -> HttpRequest -> IO ()
+handleSubscribe b c req = getServerResponse b req $ \ response -> do
+  let path = httpPath req
+  mapM_ (writeResponse c) =<< case response of
+    (Resp.Modified _ _) -> do
+      atomically $ addMonitor req c
+      return [ Resp.Subscribed path, response ]
+    _ -> return [ response ]
 
-handleUnsubscribe :: Backend backend => backend -> Subscriber api -> Client -> Path -> IO ()
-handleUnsubscribe b sub c path = writeResponse c <=< atomically $ do
-    ms <- readTVar (monitors c)
-    case Map.lookup path ms of
-      Nothing -> return $ RequestError (NoSuchSubscription path)
-      Just m -> do
-        unsubscribeMonitor sub m
-        modifyTVar (monitors c) $ Map.delete path
-        return $ Unsubscribed path
+handleUnsubscribe :: Backend backend => backend -> Client api -> Path -> IO ()
+handleUnsubscribe b c path = do
+  atomically $ removeMonitor c path
+  writeResponse c $ Unsubscribed path
 
-runMonitor :: Backend backend => backend -> Client -> IO ()
+
+runMonitor :: Backend backend => backend -> Client api -> IO ()
 runMonitor b c = forever $ do
     changes <- atomically $ monitorChanges c
-    mapM_ (sendUpdate b (writeResponse c)) changes
+    mapM_ (handleUpdate b c) changes
 
-sendUpdate :: Backend backend => backend -> (Response -> IO ()) -> (HttpRequest, ResourceStatus) -> IO ()
-sendUpdate b sendResponse (req, S.Deleted)    = sendResponse $ Resp.Deleted (httpPath req)
-sendUpdate b sendResponse (req, S.Modified _) = sendServerResponse b req sendResponse
+handleUpdate :: Backend backend => backend -> Client api -> (HttpRequest, ResourceStatus) -> IO ()
+handleUpdate b c (req, event) = case event of
+    S.Deleted        -> sendResponse $ Resp.Deleted (httpPath req)
+    ( S.Modified _ ) -> getServerResponse b req handleResponse
+  where
+    sendResponse :: Response -> IO ()
+    sendResponse = writeResponse c
 
-sendServerResponse :: Backend backend => backend -> HttpRequest -> (Response -> IO ()) -> IO ()
-sendServerResponse b req sendResponse = void $ requestResource b req
+    handleResponse :: Response -> IO ()
+    handleResponse resp = case resp of
+      HttpRequestFailed _ _ -> do
+        atomically $ removeMonitor c (httpPath req)
+        sendResponse resp
+      _                     ->
+        sendResponse resp
+
+getServerResponse :: Backend backend => backend -> HttpRequest -> (Response -> IO ()) -> IO ()
+getServerResponse b req sendResponse = void $ requestResource b req
   $ \ httpResponse -> do
+    let status = statusCode . httpStatus $ httpResponse
+    let response = Resp.httpBody httpResponse
     let path = httpPath req
-    sendResponse $ Resp.Modified path httpResponse
+    let isGoodStatus = status >= 200 && status < 300 -- We only accept success
+    sendResponse $ if isGoodStatus
+                   then
+                     Resp.Modified path response
+                   else
+                     Resp.HttpRequestFailed req httpResponse
     return ResponseReceived
 
-monitorChanges :: Client -> STM [(HttpRequest, ResourceStatus)]
+monitorChanges :: Client api -> STM [(HttpRequest, ResourceStatus)]
 monitorChanges c = do
-      snapshots <- mapM toSnapshot . Map.elems =<< readTVar (monitors c)
-      let result = getChanges snapshots
-      if null result
-        then retry
-        else do
-          let newMonitors = monitorsFromList . updateMonitors $ snapshots
-          writeTVar (monitors c) newMonitors
-          return result
+  snapshots <- mapM toSnapshot . Map.elems =<< readTVar (monitors c)
+  let result = getChanges snapshots
+  if null result
+    then retry
+    else do
+      let newMonitors = monitorsFromList . updateMonitors $ snapshots
+      writeTVar (monitors c) newMonitors
+      return result
 
 
 getChanges :: [Snapshot] -> [(HttpRequest, ResourceStatus)]
