@@ -24,10 +24,9 @@ type RequestHeader = (Text, Text)
 type RequestHeaders = [RequestHeader]
 
 -- | Any message from the client is a 'Request':
--- Currently you can only subscribe to 'GET' method endpoints.
 data Request =
     Subscribe !HttpRequest
-  | Unsubscribe !Path
+  | Unsubscribe !HttpRequest
   deriving Generic
 
 instance FromJSON Request
@@ -40,12 +39,12 @@ data HttpRequest = HttpRequest {
 , httpHeaders :: RequestHeaders
 , httpQuery   :: H.QueryText
 , httpBody    :: RequestBody
-} deriving Generic
+} deriving ( Generic, Eq, Ord )
 
 instance FromJSON HttpRequest
 instance ToJSON HttpRequest
 
-newtype RequestBody = RequestBody Text deriving (Generic, ToJSON, FromJSON)
+newtype RequestBody = RequestBody Text deriving (Generic, ToJSON, FromJSON, Eq, Ord)
 
 toHTTPHeader :: RequestHeader -> H.Header
 toHTTPHeader = bimap (Case.mk . T.encodeUtf8) T.encodeUtf8
@@ -54,5 +53,6 @@ toHTTPHeaders :: RequestHeaders -> H.RequestHeaders
 toHTTPHeaders = map toHTTPHeader
 
 requestPath :: Request -> Path
-requestPath (Subscribe req)    = httpPath req
-requestPath (Unsubscribe path) = path
+requestPath req = httpPath $ case req of
+                    Subscribe hReq -> hReq
+                    Unsubscribe hReq -> hReq

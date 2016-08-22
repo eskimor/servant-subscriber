@@ -27,10 +27,10 @@ type ResponseHeaders = R.RequestHeaders
 
 -- | Any message from the server is a Response.
 data Response =
-    Subscribed !Path -- |< Resource was successfully subscribed
-  | Modified !Path !ResponseBody -- |< If the full response is needed an additional FullSubscribe command with an appropriate additional response type will need to be added. 
+    Subscribed !R.HttpRequest -- |< Resource was successfully subscribed
+  | Modified !R.HttpRequest !ResponseBody -- |< If the full response is needed an additional FullSubscribe command with an appropriate additional response type will need to be added. 
   | Deleted !Path
-  | Unsubscribed !Path
+  | Unsubscribed !R.HttpRequest
   | HttpRequestFailed !R.HttpRequest !HttpResponse -- |< The server replied with some none 2xx status code. Thus your subscription failed.
   | ParseError -- |< Your request could not be parsed.
   deriving Generic
