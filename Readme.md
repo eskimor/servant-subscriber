@@ -13,11 +13,8 @@ It seems to work - it is already tested in examples/central-counter of servant-p
 
 Still missing:
 
- - Client code generation with servant-purescript for subscriptions.
- - Client side code (purescript-subscriber) currently only contains a very low-level API which
-   is also about to change.
  - Documentation, blog post.
- - Tests
+ - Tests 
 
 I will now continue with my actual project which uses servant-subscriber and add the missing parts when
 they come along.
