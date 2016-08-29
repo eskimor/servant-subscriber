@@ -3,7 +3,7 @@ packages:
   - '.'
 extra-deps:
   - aeson-0.11.2.0
-  - purescript-bridge-0.6.0.2
+  - purescript-bridge-0.7.0.0
 flags: {}
 
 extra-package-dbs: []
