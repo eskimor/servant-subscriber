@@ -41,14 +41,14 @@ data HttpResponse = HttpResponse {
   httpStatus  :: !Status
 , httpHeaders :: !ResponseHeaders
 , httpBody    :: ResponseBody
-} deriving (Generic)
+} deriving Generic
 
 instance ToJSON HttpResponse
 
 data Status = Status {
   statusCode    :: !Int
 , statusMessage :: !Text
-} deriving Generic
+} deriving (Generic, Show)
 
 instance ToJSON Status
 
