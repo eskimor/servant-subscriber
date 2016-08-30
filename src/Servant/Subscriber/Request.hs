@@ -28,7 +28,10 @@ data Request =
     Subscribe !HttpRequest
   | Unsubscribe !HttpRequest
 -- | A request that should be issued whenever a websocket pong is received.
---   In addition to every websocket pong the request also gets issued immediately upon receival.
+--   In addition to every websocket pong the request also gets issued
+--   immediately upon receival. Bot `SetPongRequest` and `SetCloseRequest` will
+--   be confirmed with a `Subscribed` response, but any return value of the
+--   request won't be delivered.
   | SetPongRequest !HttpRequest
   | SetCloseRequest !HttpRequest -- |< A request that should be issued when the websocket connection closes for whatever reason.
   deriving Generic

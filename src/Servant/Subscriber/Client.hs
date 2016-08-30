@@ -158,9 +158,11 @@ handleRequests b c = forever $ do
         let doIt = doRequestIgnoreResult httpReq
         writeIORef (pongCommandRef c) doIt
         doIt
+        writeResponse c $ Subscribed httpReq
       Just (SetCloseRequest httpReq) -> do
         let doIt = doRequestIgnoreResult httpReq
         atomically $ writeTVar (closeCommandRef c) doIt
+        writeResponse c $ Subscribed httpReq
  where
    doRequestIgnoreResult :: HttpRequest -> IO ()
    doRequestIgnoreResult req' = void $ requestResource b req' (const (pure ResponseReceived))
