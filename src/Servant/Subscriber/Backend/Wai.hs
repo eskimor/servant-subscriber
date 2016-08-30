@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 
 -- | Backend of accessing a wai server:
@@ -7,12 +8,14 @@ module Servant.Subscriber.Backend.Wai where
 
 import qualified Blaze.ByteString.Builder as B
 import           Data.Aeson
-import qualified Data.ByteString as BS
+import qualified Data.ByteString          as BS
 import           Data.IORef
-import qualified Data.Text.Encoding as T
-import qualified Network.HTTP.Types as H
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Internal as Wai
+import           Data.Monoid              ((<>))
+import qualified Data.Text                as T
+import qualified Data.Text.Encoding       as T
+import qualified Network.HTTP.Types       as H
+import qualified Network.Wai              as Wai
+import qualified Network.Wai.Internal     as Wai
 
 import           Servant.Subscriber.Backend
 import           Servant.Subscriber.Request as Req
@@ -40,12 +43,12 @@ toWaiRequest r = do
     , Wai.rawPathInfo = B.toByteString . H.encodePathSegments . toSegments . httpPath $ r
     , Wai.queryString = H.queryTextToQuery . httpQuery $ r
     , Wai.rawQueryString = B.toByteString . H.renderQueryText True . httpQuery $ r
-    , Wai.requestHeaders = toHTTPHeaders . Req.httpHeaders $ r
+    , Wai.requestHeaders = toHTTPHeaders . (<> standardHeaders) . Req.httpHeaders $ r
     , Wai.requestBody = waiBody
     , Wai.requestBodyLength = Wai.KnownLength . fromIntegral . BS.length $ encodedBody
     }
   where
-    encodedBody = B.toByteString . fromEncoding . toEncoding . Req.httpBody $ r
+    encodedBody = T.encodeUtf8 . runRequestBody . Req.httpBody $ r
 
 mkWaiRequestBody :: BS.ByteString -> IO (IO BS.ByteString)
 mkWaiRequestBody b = do
@@ -63,3 +66,12 @@ fromWaiResponse (Wai.ResponseBuilder status headers builder)= HttpResponse {
     , Res.httpBody    = ResponseBody builder
     }
 fromWaiResponse _ = error "I am sorry - this 'Response' type is not yet implemented in servant-subscriber!"
+
+standardHeaders :: RequestHeaders
+standardHeaders = [
+    ("Accept", "application/json")
+  , ("Content-Type", "application/json")
+  ]
+
+lengthHeader :: BS.ByteString -> RequestHeader
+lengthHeader body = ( "Content-Length", T.pack . show . BS.length $ body  )
