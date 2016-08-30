@@ -4,35 +4,38 @@ module Servant.Subscriber.Client where
 
 
 import           Control.Concurrent.Async
-import           Control.Concurrent.STM (STM, atomically, retry)
+import           Control.Concurrent.STM        (STM, atomically, retry)
 import           Control.Concurrent.STM.TVar
-import           Control.Exception (displayException, SomeException)
-import           Control.Exception.Lifted (finally, try)
+import           Control.Exception             (SomeException, displayException)
+import           Control.Exception.Lifted      (finally, try)
 import           Control.Monad
 import           Control.Monad.IO.Class
-import           Control.Monad.Logger (MonadLogger, logDebug)
-import           Control.Monad.Trans.Control (MonadBaseControl)
+import           Control.Monad.Logger          (MonadLogger, logDebug)
+import           Control.Monad.Trans.Control   (MonadBaseControl)
 import           Data.Aeson
-import           Data.Map (Map)
-import qualified Data.Map.Strict as Map
-import           Data.Set (Set)
-import qualified Data.Set as Set
-import qualified Data.Text as T
-import qualified Network.WebSockets as WS
+import           Data.IORef                    (IORef, writeIORef)
+import           Data.Map                      (Map)
+import qualified Data.Map.Strict               as Map
+import           Data.Set                      (Set)
+import qualified Data.Set                      as Set
+import qualified Data.Text                     as T
+import qualified Network.WebSockets            as WS
 import           Network.WebSockets.Connection as WS
 
 import           Servant.Subscriber.Backend
 import           Servant.Subscriber.Request
 import           Servant.Subscriber.Response as Resp
-import           Servant.Subscriber.Types as S
+import           Servant.Subscriber.Types    as S
 
 type ClientMonitors = Map Path StatusMonitor
 
 data Client api = Client {
-    subscriber    :: !(Subscriber api)
-  , monitors      :: !(TVar ClientMonitors)
-  , readRequest   :: !(IO (Maybe Request))
-  , writeResponse :: !(Response -> IO ())
+    subscriber      :: !(Subscriber api)
+  , monitors        :: !(TVar ClientMonitors)
+  , readRequest     :: !(IO (Maybe Request))
+  , writeResponse   :: !(Response -> IO ())
+  , pongCommandRef  :: !(IORef (IO ()))
+  , closeCommandRef :: !(TVar (IO ())) -- |< TVar so actions on it can happen in STM
   }
 
 data StatusMonitor = StatusMonitor {
@@ -61,9 +64,10 @@ toSnapshot mon = do
 snapshotRequests :: Snapshot -> Set HttpRequest
 snapshotRequests = requests . fullMonitor
 
-fromWebSocket :: Subscriber api -> WS.Connection -> STM (Client api)
-fromWebSocket sub c = do
+fromWebSocket :: Subscriber api -> IORef (IO ()) -> WS.Connection -> STM (Client api)
+fromWebSocket sub myRef c = do
   ms <- newTVar Map.empty
+  closeVar <- newTVar (return ())
   return Client {
     subscriber = sub
   , monitors = ms
@@ -73,6 +77,8 @@ fromWebSocket sub c = do
         WS.Text bs  -> return $ decode bs
         WS.Binary _ -> error "Sorry - binary connections currently unsupported!"
   , writeResponse = sendDataMessage c . WS.Text . encode
+  , pongCommandRef = myRef
+  , closeCommandRef = closeVar
   }
 
 run :: (MonadLogger m, MonadBaseControl IO m, MonadIO m, Backend backend)
@@ -81,9 +87,12 @@ run b c = do
   let
     sub     = subscriber c
     work    = liftIO $ race_ (runMonitor b c) (handleRequests b c)
-    cleanup = liftIO . atomically $ do
-      ms <- readTVar (monitors c)
-      mapM_ (unsubscribeMonitor sub) ms
+    cleanup = do
+      close <- liftIO . atomically $ do
+        ms <- readTVar (monitors c)
+        mapM_ (unsubscribeMonitor sub) ms
+        readTVar (closeCommandRef c)
+      liftIO close
   r <- try $ finally work cleanup
   case r of
     Left e -> $logDebug $ T.pack $ displayException (e :: SomeException)
@@ -132,7 +141,7 @@ removeRequest c req = do
 unsubscribeMonitor :: Subscriber api -> StatusMonitor -> STM ()
 unsubscribeMonitor sub m =
   let
-    path = monitorPath m 
+    path = monitorPath m
     mon = monitor m
   in
     unsubscribe path mon sub
@@ -145,6 +154,16 @@ handleRequests b c = forever $ do
       Nothing                  -> writeResponse c ParseError
       Just (Subscribe httpReq) -> handleSubscribe b c httpReq
       Just (Unsubscribe path)  -> handleUnsubscribe c path
+      Just (SetPongRequest httpReq) -> do
+        let doIt = doRequestIgnoreResult httpReq
+        writeIORef (pongCommandRef c) doIt
+        doIt
+      Just (SetCloseRequest httpReq) -> do
+        let doIt = doRequestIgnoreResult httpReq
+        atomically $ writeTVar (closeCommandRef c) doIt
+ where
+   doRequestIgnoreResult :: HttpRequest -> IO ()
+   doRequestIgnoreResult req' = void $ requestResource b req' (const (pure ResponseReceived))
 
 handleSubscribe :: Backend backend => backend -> Client api -> HttpRequest -> IO ()
 handleSubscribe b c req = getServerResponse b req $ \ response -> do

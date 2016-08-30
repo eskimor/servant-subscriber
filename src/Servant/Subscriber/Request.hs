@@ -7,11 +7,11 @@ module Servant.Subscriber.Request where
 
 import           Data.Aeson
 import           Data.Bifunctor
-import qualified Data.CaseInsensitive as Case
-import           Data.Text (Text)
-import qualified Data.Text.Encoding as T
+import qualified Data.CaseInsensitive     as Case
+import           Data.Text                (Text)
+import qualified Data.Text.Encoding       as T
 import           GHC.Generics
-import qualified Network.HTTP.Types as H
+import qualified Network.HTTP.Types       as H
 import           Servant.Subscriber.Types
 
 
@@ -27,6 +27,10 @@ type RequestHeaders = [RequestHeader]
 data Request =
     Subscribe !HttpRequest
   | Unsubscribe !HttpRequest
+-- | A request that should be issued whenever a websocket pong is received.
+--   In addition to every websocket pong the request also gets issued immediately upon receival.
+  | SetPongRequest !HttpRequest
+  | SetCloseRequest !HttpRequest -- |< A request that should be issued when the websocket connection closes for whatever reason.
   deriving Generic
 
 instance FromJSON Request
@@ -52,7 +56,10 @@ toHTTPHeader = bimap (Case.mk . T.encodeUtf8) T.encodeUtf8
 toHTTPHeaders :: RequestHeaders -> H.RequestHeaders
 toHTTPHeaders = map toHTTPHeader
 
+-- | This is ugly - but I don't care for now.
 requestPath :: Request -> Path
 requestPath req = httpPath $ case req of
                     Subscribe hReq -> hReq
                     Unsubscribe hReq -> hReq
+                    SetPongRequest hReq -> hReq
+                    SetCloseRequest hReq -> hReq
