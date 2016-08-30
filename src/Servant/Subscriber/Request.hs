@@ -46,12 +46,15 @@ data HttpRequest = HttpRequest {
 , httpHeaders :: RequestHeaders
 , httpQuery   :: H.QueryText
 , httpBody    :: RequestBody
-} deriving ( Generic, Eq, Ord )
+} deriving ( Generic, Eq, Ord, Show )
 
 instance FromJSON HttpRequest
 instance ToJSON HttpRequest
 
-newtype RequestBody = RequestBody Text deriving (Generic, ToJSON, FromJSON, Eq, Ord)
+newtype RequestBody = RequestBody Text deriving (Generic, ToJSON, FromJSON, Eq, Ord, Show)
+
+runRequestBody :: RequestBody -> Text
+runRequestBody (RequestBody t) = t
 
 toHTTPHeader :: RequestHeader -> H.Header
 toHTTPHeader = bimap (Case.mk . T.encodeUtf8) T.encodeUtf8
