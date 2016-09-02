@@ -63,7 +63,7 @@ fromWaiResponse :: Wai.Response -> HttpResponse
 fromWaiResponse (Wai.ResponseBuilder status headers builder)= HttpResponse {
       httpStatus      = fromHTTPStatus status
     , Res.httpHeaders = fromHTTPHeaders headers
-    , Res.httpBody    = ResponseBody builder
+    , Res.httpBody    = T.decodeUtf8 . B.toByteString $ builder
     }
 fromWaiResponse _ = error "I am sorry - this 'Response' type is not yet implemented in servant-subscriber!"
 

@@ -2,20 +2,21 @@
 module Servant.Subscriber.Response where
 
 
-import qualified Blaze.ByteString.Builder        as B
-import qualified Blaze.ByteString.Builder.Char8  as B
+import qualified Blaze.ByteString.Builder       as B
+import qualified Blaze.ByteString.Builder.Char8 as B
 import           Data.Aeson
-import           Data.Aeson.Parser               (value)
-import           Data.Aeson.Types                (unsafeToEncoding)
-import           Data.Attoparsec.ByteString      (parseOnly)
+import           Data.Aeson.Parser              (value)
+import           Data.Aeson.Types               (unsafeToEncoding)
+import           Data.Attoparsec.ByteString     (parseOnly)
 import           Data.Bifunctor
-import qualified Data.CaseInsensitive            as Case
-import           Data.Monoid                     ((<>))
-import           Data.Text                       (Text)
-import qualified Data.Text                       as T
-import qualified Data.Text.Encoding              as T
+import qualified Data.ByteString.Lazy         as BS
+import qualified Data.CaseInsensitive           as Case
+import           Data.Monoid                    ((<>))
+import           Data.Text                      (Text)
+import qualified Data.Text                      as T
+import qualified Data.Text.Encoding             as T
 import           GHC.Generics
-import qualified Network.HTTP.Types              as H
+import qualified Network.HTTP.Types             as H
 import           Servant.Server
 
 import qualified Servant.Subscriber.Request      as R
@@ -40,7 +41,7 @@ instance ToJSON Response
 data HttpResponse = HttpResponse {
   httpStatus  :: !Status
 , httpHeaders :: !ResponseHeaders
-, httpBody    :: ResponseBody
+, httpBody    :: !ResponseBody
 } deriving Generic
 
 instance ToJSON HttpResponse
@@ -52,15 +53,8 @@ data Status = Status {
 
 instance ToJSON Status
 
-data ResponseBody = ResponseBody B.Builder deriving Generic
+type ResponseBody = Text
 
-instance ToJSON ResponseBody where
-  toJSON (ResponseBody b) = getValue $ parseOnly value (B.toByteString (wrapInString b))
-    where
-      getValue r = case r of
-        Left e -> error e
-        Right r -> r
-  toEncoding (ResponseBody b) = unsafeToEncoding . wrapInString $ b
 
 fromHTTPHeader :: H.Header -> ResponseHeader
 fromHTTPHeader = bimap (T.decodeUtf8 . Case.original) T.decodeUtf8
@@ -78,7 +72,7 @@ fromServantError :: ServantErr -> HttpResponse
 fromServantError err =  HttpResponse {
   httpStatus = Status (errHTTPCode err) (T.pack $ errReasonPhrase err)
 , httpHeaders = fromHTTPHeaders . errHeaders $ err
-, httpBody = ResponseBody . B.fromLazyByteString . errBody $ err
+, httpBody = T.decodeUtf8 . BS.toStrict . errBody $ err
 }
 
 wrapInString :: B.Builder -> B.Builder
