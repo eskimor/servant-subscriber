@@ -9,12 +9,9 @@ changes, thus the client can easily stay up to date with a resource.
 
 ## Status
 
-It seems to work - it is already tested in examples/central-counter of servant-purescript.
+It seems to work - it is already tested in examples/central-counter of servant-purescript and used in production.
 
 Still missing:
 
- - Documentation, blog post.
+ - Documentation, announcement.
  - Tests 
-
-I will now continue with my actual project which uses servant-subscriber and add the missing parts when
-they come along.
