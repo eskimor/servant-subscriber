@@ -1,0 +1,13 @@
+resolver: nightly-2016-09-04
+packages:
+  - '.'
+  # - '../purescript-bridge'
+extra-deps:
+  - purescript-bridge-0.7.0.1
+flags: {}
+
+extra-package-dbs: []
+
+nix:
+   shell-file: stack-8.0.nix
+#   packages: [zlib gcc]
