@@ -69,7 +69,7 @@ data Subscriber api = Subscriber {
 
 data Event = DeleteEvent | ModifyEvent deriving (Eq)
 
-{--|
+{-|
   Notify the subscriber about a changed resource.
   You have to provide a typesafe link to the changed resource. Only
   Symbols and Captures are allowed in this link.
@@ -81,7 +81,7 @@ data Event = DeleteEvent | ModifyEvent deriving (Eq)
   for: You will typicall provide a lamda there providing needed parameters.
 
   TODO: Example!
---}
+-}
 notify :: forall api endpoint. (IsElem endpoint api, HasLink endpoint
   , IsValidEndpoint endpoint, IsSubscribable endpoint api)
   => Subscriber api

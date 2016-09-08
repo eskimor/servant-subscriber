@@ -35,7 +35,7 @@ data Client api = Client {
   , readRequest     :: !(IO (Maybe Request))
   , writeResponse   :: !(Response -> IO ())
   , pongCommandRef  :: !(IORef (IO ()))
-  , closeCommandRef :: !(TVar (IO ())) -- |< TVar so actions on it can happen in STM
+  , closeCommandRef :: !(TVar (IO ())) -- TVar so actions on it can happen in STM
   }
 
 data StatusMonitor = StatusMonitor {
@@ -188,7 +188,7 @@ runMonitor b c = forever $ do
 
 handleUpdates :: Backend backend => backend -> Client api -> (Set HttpRequest, ResourceStatus) -> IO ()
 handleUpdates b c (reqs, event) = case event of
-    S.Deleted        -> writeResponse c $ Resp.Deleted (httpPath . Set.elemAt 0 $ reqs) -- |< elemAt is partial - but we should never have an empty set, so this should be fine! - Check, check double check - test suite?! Or change parameters to this function.
+    S.Deleted        -> writeResponse c $ Resp.Deleted (httpPath . Set.elemAt 0 $ reqs) -- elemAt is partial - but we should never have an empty set, so this should be fine! - Check, check double check - test suite?! Or change parameters to this function.
     ( S.Modified _ ) -> mapM_ (handleModified b c) reqs
 
 

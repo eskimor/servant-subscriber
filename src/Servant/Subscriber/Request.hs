@@ -17,24 +17,25 @@ import           Servant.Subscriber.Types
 
 
 
-{--| We don't use Network.HTTP.Types here, because we need FromJSON instances, which can not
-     be derived for 'ByteString'
---}
+--   We don't use Network.HTTP.Types here, because we need FromJSON instances, which can not
+--   be derived for 'ByteString'
 type RequestHeader = (Text, Text)
 type RequestHeaders = [RequestHeader]
 
 -- | Any message from the client is a 'Request':
-data Request =
-    Subscribe !HttpRequest
-  | Unsubscribe !HttpRequest
--- | A request that should be issued whenever a websocket pong is received.
+--
+--   `SetPongRequest`: A request that should be issued whenever a websocket pong is received.
 --   In addition to every websocket pong the request also gets issued
 --   immediately upon receival. Bot `SetPongRequest` and `SetCloseRequest` will
 --   be confirmed with a `Subscribed` response, but any return value of the
 --   request won't be delivered.
-  | SetPongRequest !HttpRequest
-  | SetCloseRequest !HttpRequest -- |< A request that should be issued when the websocket connection closes for whatever reason.
-  deriving Generic
+--
+--   `SetCloseRequest`: A request that should be issued when the websocket
+--   connection closes for whatever reason.
+data Request = Subscribe !HttpRequest
+             | Unsubscribe !HttpRequest
+             | SetPongRequest !HttpRequest
+             | SetCloseRequest !HttpRequest deriving (Generic)
 
 instance FromJSON Request
 instance ToJSON Request
@@ -62,7 +63,7 @@ toHTTPHeader = bimap (Case.mk . T.encodeUtf8) T.encodeUtf8
 toHTTPHeaders :: RequestHeaders -> H.RequestHeaders
 toHTTPHeaders = map toHTTPHeader
 
--- | This is ugly - but I don't care for now.
+-- This is ugly - but I don't care for now.
 requestPath :: Request -> Path
 requestPath req = httpPath $ case req of
                     Subscribe hReq -> hReq

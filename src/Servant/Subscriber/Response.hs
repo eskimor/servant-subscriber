@@ -27,13 +27,23 @@ type ResponseHeader = R.RequestHeader
 type ResponseHeaders = R.RequestHeaders
 
 -- | Any message from the server is a Response.
+--
+--   'Subscribed': Resource was successfully subscribed
+--
+--   'Modified': Resource was modified (this message is also triggered immediately after a subscription)
+--
+--   'HttpRequestFailed': The server replied with some none 2xx status code.
+--   Thus your subscription failed or got removed.
+--
+--   'ParseError': Your request could not be parsed.
+
 data Response =
-    Subscribed !R.HttpRequest -- |< Resource was successfully subscribed
-  | Modified !R.HttpRequest !ResponseBody -- |< If the full response is needed an additional FullSubscribe command with an appropriate additional response type will need to be added. 
+    Subscribed !R.HttpRequest
+  | Modified !R.HttpRequest !ResponseBody -- If the full response is needed an additional FullSubscribe command with an appropriate additional response type will need to be added.
   | Deleted !Path
   | Unsubscribed !R.HttpRequest
-  | HttpRequestFailed !R.HttpRequest !HttpResponse -- |< The server replied with some none 2xx status code. Thus your subscription failed.
-  | ParseError -- |< Your request could not be parsed.
+  | HttpRequestFailed !R.HttpRequest !HttpResponse
+  | ParseError
   deriving Generic
 
 instance ToJSON Response
