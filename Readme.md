@@ -3,7 +3,7 @@ Servant Subscriber
 
 [![Build Status](https://travis-ci.org/eskimor/servant-subscriber.svg?branch=master)](https://travis-ci.org/eskimor/servant-subscriber)
 
-Servant-subscriber enables you clients to subscribe to resources in your servant-api (an API endpoint).
+Servant-subscriber enables your clients to subscribe to resources in your servant-api (an API endpoint).
 Servant-subscriber will then notify the client via a WebSocket connection whenever the resource
 changes, thus the client can easily stay up to date with a resource.
 
