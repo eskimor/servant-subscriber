@@ -14,13 +14,15 @@ import           Data.Aeson
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Proxy
+import           Data.Monoid
 import           Data.String (IsString, fromString)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           GHC.Generics
-import           Network.URI (URI (..), pathSegments)
+import           Network.URI (URI (..), pathSegments, unEscapeString)
 import           Servant.Utils.Links (IsElem, HasLink, MkLink, safeLink)
 import           System.FilePath.Posix (splitPath)
+import Debug.Trace (trace)
 
 import           Servant.Subscriber.Subscribable
 
@@ -90,8 +92,9 @@ notify :: forall api endpoint. (IsElem endpoint api, HasLink endpoint
   -> (MkLink endpoint -> URI)
   -> STM ()
 notify subscriber event pEndpoint getLink = do
-  let mkPath = Path . map T.pack . pathSegments . getLink
+  let mkPath = Path . map (T.pack . unEscapeString) . pathSegments . getLink
   let resource = mkPath $ safeLink (Proxy :: Proxy api) pEndpoint
+  trace ("NOTIFIED PATH:" <> show resource) (pure ())
   modifyState event resource subscriber
 
 -- | Version of notify that lives in 'IO' - for your convenience.
