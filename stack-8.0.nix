@@ -5,6 +5,6 @@ in
 haskell.lib.buildStackProject {
   name = "myEnv";
 #    buildInputs = [ gcc git zlib pkgconfig ghc glibcLocales ];
-  buildInputs = [ zlib haskellPackages.ghc-mod ];
+  buildInputs = [ zlib ];
   ghc = ghc;
 }

@@ -1,9 +1,9 @@
-resolver: nightly-2016-09-07
+resolver: lts-8.0
 packages:
   - '.'
   # - '../purescript-bridge'
 extra-deps:
-  - purescript-bridge-0.8.0.0
+  - purescript-bridge-0.10.1.0
 flags: {}
 
 extra-package-dbs: []
