@@ -90,15 +90,3 @@ instance HasForeign lang ftype sublayout => HasForeign lang ftype (Subscribable 
 instance HasLink sub => HasLink (Subscribable :> sub) where
     type MkLink (Subscribable :> sub) = MkLink sub
     toLink _ = toLink (Proxy :: Proxy sub)
-
--------------- Copied from Servant.Util.Links (they are not exported) ----------
-
--- | If both a or b produce an empty constraint, produce an empty constraint.
-type family And (a :: Constraint) (b :: Constraint) :: Constraint where
-    And () ()     = ()
-
-type family Elem e es :: Constraint where
-    Elem x (x ': xs) = ()
-    Elem y (x ': xs) = Elem y xs
-
---------------------------------------------------------------------------------
