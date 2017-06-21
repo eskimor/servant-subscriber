@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Servant.Subscriber.Client where
@@ -84,9 +85,17 @@ fromWebSocket sub myRef c = do
   , readRequest = do
       msg <- WS.receiveDataMessage c
       case msg of
+#ifdef WEBSOCKETS_0_11
+        WS.Text bs _ -> return $ decode bs
+#else
         WS.Text bs  -> return $ decode bs
+#endif
         WS.Binary _ -> error "Sorry - binary connections currently unsupported!"
+#ifdef WEBSOCKETS_0_11
+  , writeResponse = \msg -> sendDataMessage c $ WS.Text (encode msg) Nothing
+#else
   , writeResponse = sendDataMessage c . WS.Text . encode
+#endif
   , pongCommandRef = myRef
   , closeCommandRef = closeVar
   }
