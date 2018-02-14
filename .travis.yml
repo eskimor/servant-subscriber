@@ -81,7 +81,7 @@ install:
 script:
   - |
       if [ ${GHC} != head ]; then
-        stack build --no-terminal
+        stack build --no-terminal --flag servant-subscriber:WEBSOCKETS_0_11
       else
         cabal install --allow-newer
       fi
