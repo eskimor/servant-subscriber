@@ -9,7 +9,7 @@ changes, thus the client can easily stay up to date with a resource.
 
 ## Status
 
-It seems to work - it is already tested in examples/central-counter of servant-purescript and used in production.
+It seems to work - it is already tested in [examples/central-counter](https://github.com/eskimor/servant-purescript/tree/master/examples/central-counter) of servant-purescript and used in production.
 
 Still missing:
 
