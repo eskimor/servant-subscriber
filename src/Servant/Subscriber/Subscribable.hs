@@ -88,5 +88,5 @@ instance HasForeign lang ftype sublayout => HasForeign lang ftype (Subscribable 
                                           req & reqFuncName . _FunctionName %~ ("" :) -- Prepend empty string for marking as subscribable.
 
 instance HasLink sub => HasLink (Subscribable :> sub) where
-    type MkLink (Subscribable :> sub) = MkLink sub
-    toLink _ = toLink (Proxy :: Proxy sub)
+    type MkLink (Subscribable :> sub) a = MkLink sub a
+    toLink toA _ = toLink toA (Proxy :: Proxy sub)
