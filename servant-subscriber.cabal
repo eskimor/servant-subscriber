@@ -1,5 +1,5 @@
 name:                servant-subscriber
-version:             0.6.0.1
+version:             0.6.0.2
 synopsis:            When REST is not enough ...
 description:         Please see Readme.md
 homepage:            http://github.com/eskimor/servant-subscriber#readme
@@ -16,7 +16,7 @@ cabal-version:       >=1.10
 extra-source-files:  Readme.md
 
 Flag WEBSOCKETS_0_11
-               
+
 
 library
   hs-source-dirs:      src
@@ -50,7 +50,7 @@ library
                      , monad-control
                      , monad-logger
                      , network-uri
-                     , servant
+                     , servant >= 0.14
                      , servant-foreign
                      , servant-server
                      , stm
