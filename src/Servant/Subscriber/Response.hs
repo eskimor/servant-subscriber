@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveGeneric #-}
 module Servant.Subscriber.Response where
 
@@ -78,7 +79,11 @@ fromHTTPStatus s = Status {
 , statusMessage = T.decodeUtf8 . H.statusMessage $ s
 }
 
+#if MIN_VERSION_servant(0,16,0)
+fromServantError :: ServerError -> HttpResponse
+#else
 fromServantError :: ServantErr -> HttpResponse
+#endif
 fromServantError err =  HttpResponse {
   httpStatus = Status (errHTTPCode err) (T.pack $ errReasonPhrase err)
 , httpHeaders = fromHTTPHeaders . errHeaders $ err
