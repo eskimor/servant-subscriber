@@ -35,7 +35,7 @@ import           Network.Wai.Handler.WebSockets
 import           Network.WebSockets.Connection   as WS
 import           Servant.Server
 import           Servant.Subscriber.Subscribable
-import           Servant.Utils.Links             (HasLink, IsElem, MkLink,
+import           Servant.Links                   (HasLink, IsElem, MkLink,
                                                   safeLink)
 
 import           Servant.Subscriber.Backend.Wai  ()
