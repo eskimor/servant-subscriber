@@ -50,7 +50,7 @@ library
                      , monad-control
                      , monad-logger
                      , network-uri
-                     , servant >= 0.14
+                     , servant >= 0.14.1
                      , servant-foreign
                      , servant-server
                      , stm
